@@ -1,3 +1,5 @@
+# nightcord
+
 # Nightcord - Discord Clone App
 
 Ứng dụng chat giống Discord được xây dựng với React Native và Expo.
