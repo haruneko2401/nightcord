@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "Nightcord",
+    "slug": "nightcord",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#202225",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nightcord.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#202225"
+      },
+      "package": "com.nightcord.app",
+      "permissions": [
+        "INTERNET"
+      ]
+    },
+    "web": {},
+    "extra": {
+      "eas": {
+        "projectId": "5e2ccb60-c919-4c79-9ac5-ba11c2984a3e"
+      }
+    }
+  }
+}
