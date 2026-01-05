@@ -14,7 +14,10 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nightcord.app"
+      "bundleIdentifier": "com.nightcord.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -25,11 +28,27 @@
         "INTERNET"
       ]
     },
-    "web": {},
+    "web": {
+      "bundler": "metro",
+      "name": "Nightcord",
+      "shortName": "Nightcord",
+      "lang": "vi",
+      "scope": "/",
+      "themeColor": "#202225",
+      "backgroundColor": "#202225",
+      "display": "standalone",
+      "orientation": "any",
+      "startUrl": "/",
+      "description": "Nightcord - Discord Clone App"
+    },
     "extra": {
       "eas": {
         "projectId": "5e2ccb60-c919-4c79-9ac5-ba11c2984a3e"
       }
-    }
+    },
+    "plugins": [
+      "expo-asset",
+      "expo-font"
+    ]
   }
 }

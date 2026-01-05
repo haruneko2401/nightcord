@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, FlatList, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, Text, TouchableOpacity, FlatList, StyleSheet, ScrollView } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import COLORS from '../constants/colors';
 import { CHANNELS } from '../data/mock';
@@ -27,111 +26,96 @@ const ChannelItem = ({ item, isActive, onPress }) => (
   </TouchableOpacity>
 );
 
-export default function ChannelList({ serverName, activeChannel, onSelectChannel }) {
+export default function MobileChannelList({ serverName, activeChannel, onSelectChannel, onBack }) {
+  const textChannels = CHANNELS.filter(c => c.type === 'text');
+  const voiceChannels = CHANNELS.filter(c => c.type === 'voice');
 
   return (
-    <LinearGradient
-      colors={[COLORS.CHANNEL_LIST, COLORS.BACKGROUND]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
-      style={styles.container}
-    >
-      {/* Header với Gradient */}
-      <LinearGradient
-        colors={[COLORS.CHANNEL_LIST, COLORS.HEADER]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.header}
-      >
+    <View style={styles.container}>
+      {/* Header với Back Button */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+          <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.TEXT_BRIGHT} />
+        </TouchableOpacity>
         <View style={styles.headerContent}>
           <MaterialCommunityIcons name="server" size={20} color={COLORS.ACCENT_SECONDARY} />
           <Text style={styles.serverName}>{serverName}</Text>
         </View>
-        <TouchableOpacity style={styles.headerButton}>
-          <MaterialCommunityIcons name="chevron-down" size={20} color={COLORS.TEXT_MUTED} />
-        </TouchableOpacity>
-      </LinearGradient>
+      </View>
 
-      {/* Category: TEXT CHANNELS */}
-      <View style={styles.categoryContainer}>
-        <View style={styles.categoryHeader}>
-          <MaterialCommunityIcons name="chevron-right" size={14} color={COLORS.TEXT_MUTED} />
-          <Text style={styles.categoryText}>TEXT CHANNELS</Text>
-        </View>
-        <FlatList
-          data={CHANNELS.filter(c => c.type === 'text')}
-          keyExtractor={item => item.id}
-          renderItem={({ item }) => (
-            <ChannelItem 
-              item={item} 
+      {/* Channels List */}
+      <ScrollView style={styles.channelsList} showsVerticalScrollIndicator={false}>
+        {/* TEXT CHANNELS Category */}
+        <View style={styles.categoryContainer}>
+          <View style={styles.categoryHeader}>
+            <MaterialCommunityIcons name="chevron-right" size={14} color={COLORS.TEXT_MUTED} />
+            <Text style={styles.categoryText}>TEXT CHANNELS</Text>
+          </View>
+          {textChannels.map(item => (
+            <ChannelItem
+              key={item.id}
+              item={item}
               isActive={activeChannel === item.id}
               onPress={() => onSelectChannel && onSelectChannel(item.id)}
             />
-          )}
-          scrollEnabled={false}
-        />
-      </View>
-
-      {/* Category: VOICE CHANNELS */}
-      <View style={styles.categoryContainer}>
-        <View style={styles.categoryHeader}>
-          <MaterialCommunityIcons name="chevron-right" size={14} color={COLORS.TEXT_MUTED} />
-          <Text style={styles.categoryText}>VOICE CHANNELS</Text>
+          ))}
         </View>
-        <FlatList
-          data={CHANNELS.filter(c => c.type === 'voice')}
-          keyExtractor={item => item.id}
-          renderItem={({ item }) => (
-            <ChannelItem 
-              item={item} 
+
+        {/* VOICE CHANNELS Category */}
+        <View style={styles.categoryContainer}>
+          <View style={styles.categoryHeader}>
+            <MaterialCommunityIcons name="chevron-right" size={14} color={COLORS.TEXT_MUTED} />
+            <Text style={styles.categoryText}>VOICE CHANNELS</Text>
+          </View>
+          {voiceChannels.map(item => (
+            <ChannelItem
+              key={item.id}
+              item={item}
               isActive={activeChannel === item.id}
               onPress={() => onSelectChannel && onSelectChannel(item.id)}
             />
-          )}
-          scrollEnabled={false}
-        />
-      </View>
-    </LinearGradient>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    width: 240,
-    borderRightWidth: 1,
-    borderRightColor: COLORS.BORDER,
+    flex: 1,
+    backgroundColor: COLORS.CHANNEL_LIST,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.BORDER,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: COLORS.ACCENT,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
+    backgroundColor: COLORS.HEADER,
+  },
+  backButton: {
+    padding: 4,
+    marginRight: 12,
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1,
   },
   serverName: {
     color: COLORS.TEXT_BRIGHT,
+    fontSize: 18,
     fontWeight: 'bold',
-    fontSize: 16,
-    letterSpacing: 0.5,
   },
-  headerButton: {
-    padding: 4,
+  channelsList: {
+    flex: 1,
   },
   categoryContainer: {
     marginTop: 16,
-    paddingHorizontal: 8,
+    paddingHorizontal: 16,
   },
   categoryHeader: {
     flexDirection: 'row',
@@ -150,8 +134,8 @@ const styles = StyleSheet.create({
   channelItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 8,
-    paddingHorizontal: 12,
+    padding: 12,
+    paddingHorizontal: 16,
     borderRadius: 6,
     marginBottom: 2,
     gap: 8,
@@ -177,3 +161,4 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
 });
+
