@@ -6,6 +6,88 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import COLORS from '../constants/colors';
 
+// Typing Indicator Component (same as ChatArea)
+const TypingIndicator = ({ typingUsers }) => {
+  const dot1Anim = useRef(new Animated.Value(0.4)).current;
+  const dot2Anim = useRef(new Animated.Value(0.4)).current;
+  const dot3Anim = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    const animateDots = () => {
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(dot1Anim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot2Anim, {
+            toValue: 0.4,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot3Anim, {
+            toValue: 0.4,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(dot1Anim, {
+            toValue: 0.4,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot2Anim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot3Anim, {
+            toValue: 0.4,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(dot1Anim, {
+            toValue: 0.4,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot2Anim, {
+            toValue: 0.4,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot3Anim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]).start(() => animateDots());
+    };
+
+    animateDots();
+  }, []);
+
+  return (
+    <View style={styles.typingIndicator}>
+      <View style={styles.typingDots}>
+        <Animated.View style={[styles.typingDot, { opacity: dot1Anim }]} />
+        <Animated.View style={[styles.typingDot, { opacity: dot2Anim }]} />
+        <Animated.View style={[styles.typingDot, { opacity: dot3Anim }]} />
+      </View>
+      <Text style={styles.typingText}>
+        {typingUsers.length === 1 
+          ? `${typingUsers[0]} đang soạn...`
+          : `${typingUsers.length} người đang soạn...`}
+      </Text>
+    </View>
+  );
+};
+
 const MessageItem = ({ item, isOwnMessage, index }) => {
   const slideAnim = useRef(new Animated.Value(50)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -63,7 +145,8 @@ const MessageItem = ({ item, isOwnMessage, index }) => {
 export default function MobileChatArea({ 
   channelName, 
   messages, 
-  onSendMessage, 
+  onSendMessage,
+  typingUsers = [], 
   onBack 
 }) {
   const [text, setText] = useState('');
@@ -105,6 +188,17 @@ export default function MobileChatArea({
     }
   };
 
+  const handleKeyPress = (e) => {
+    // Enter để gửi, Shift+Enter để xuống dòng
+    const key = e.nativeEvent?.key || e.key;
+    const shiftKey = e.nativeEvent?.shiftKey || e.shiftKey;
+    
+    if (key === 'Enter' && !shiftKey) {
+      e.preventDefault?.();
+      handleSend();
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Header với Back Button */}
@@ -138,6 +232,11 @@ export default function MobileChatArea({
           contentContainerStyle={styles.listContent}
           style={styles.list}
           showsVerticalScrollIndicator={false}
+          ListFooterComponent={
+            typingUsers.length > 0 ? (
+              <TypingIndicator typingUsers={typingUsers} />
+            ) : null
+          }
         />
 
         {/* Input Area */}
@@ -165,7 +264,9 @@ export default function MobileChatArea({
               onFocus={() => setFocused(true)}
               onBlur={() => setFocused(false)}
               onSubmitEditing={handleSend}
+              onKeyPress={handleKeyPress}
               multiline
+              blurOnSubmit={false}
               maxLength={2000}
             />
             <Animated.View
@@ -308,6 +409,29 @@ const styles = StyleSheet.create({
     padding: 8,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  typingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  typingDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  typingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.TEXT_MUTED,
+  },
+  typingText: {
+    color: COLORS.TEXT_MUTED,
+    fontSize: 13,
+    fontStyle: 'italic',
   },
 });
 

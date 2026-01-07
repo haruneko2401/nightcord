@@ -9,15 +9,18 @@ import {
   StyleSheet,
   ScrollView,
   Platform,
+  Modal,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import COLORS from '../constants/colors';
 import { FRIENDS, DIRECT_MESSAGES } from '../data/mock';
 
-export default function FriendsScreen() {
+export default function FriendsScreen({ onLogout, user, onCreateServer }) {
   const [activeTab, setActiveTab] = useState('online'); // 'online', 'all', 'pending'
   const [searchQuery, setSearchQuery] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
 
   const filteredFriends = FRIENDS.filter(friend => {
     if (activeTab === 'online') return friend.status === 'online';
@@ -107,7 +110,10 @@ export default function FriendsScreen() {
             <TouchableOpacity style={styles.userActionButton}>
               <MaterialCommunityIcons name="headphones" size={18} color={COLORS.TEXT_MUTED} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.userActionButton}>
+            <TouchableOpacity 
+              style={styles.userActionButton}
+              onPress={() => setShowSettings(true)}
+            >
               <MaterialCommunityIcons name="cog" size={18} color={COLORS.TEXT_MUTED} />
             </TouchableOpacity>
           </View>
@@ -133,6 +139,24 @@ export default function FriendsScreen() {
               onChangeText={setSearchQuery}
             />
           </View>
+          {/* Create Server Button */}
+          {onCreateServer && (
+            <TouchableOpacity 
+              style={styles.createServerButton}
+              onPress={onCreateServer}
+              activeOpacity={0.7}
+            >
+              <LinearGradient
+                colors={[COLORS.ACCENT, COLORS.ACCENT_PINK]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.createServerButtonGradient}
+              >
+                <MaterialCommunityIcons name="plus" size={18} color={COLORS.WHITE} />
+                <Text style={styles.createServerButtonText}>Create Server</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
           <View style={styles.tabsContainer}>
             <TouchableOpacity
               style={[styles.tab, activeTab === 'friends' && styles.tabActive]}
@@ -274,6 +298,131 @@ export default function FriendsScreen() {
           )}
         </ScrollView>
       </LinearGradient>
+
+      {/* Settings Modal */}
+      <Modal
+        visible={showSettings}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowSettings(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSettings(false)}
+        >
+          <TouchableOpacity
+            style={styles.settingsModal}
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.settingsHeader}>
+              <Text style={styles.settingsTitle}>Settings</Text>
+              <TouchableOpacity
+                onPress={() => setShowSettings(false)}
+                style={styles.closeButton}
+              >
+                <MaterialCommunityIcons name="close" size={24} color={COLORS.TEXT_BRIGHT} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.settingsContent}>
+              {/* User Info */}
+              <View style={styles.settingsSection}>
+                <View style={styles.userInfoSection}>
+                  <Image 
+                    source={{ uri: 'https://i.pravatar.cc/100?img=50' }} 
+                    style={styles.settingsAvatar} 
+                  />
+                  <View style={styles.userInfoText}>
+                    <Text style={styles.settingsUserName}>
+                      {user?.displayName || user?.username || 'HarukiSakur...'}
+                    </Text>
+                    <Text style={styles.settingsUserEmail}>
+                      {user?.email || 'user@example.com'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Settings Options */}
+              <View style={styles.settingsSection}>
+                <TouchableOpacity style={styles.settingsOption}>
+                  <MaterialCommunityIcons name="account" size={20} color={COLORS.TEXT_BRIGHT} />
+                  <Text style={styles.settingsOptionText}>My Account</Text>
+                  <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.TEXT_MUTED} />
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.settingsOption}>
+                  <MaterialCommunityIcons name="bell" size={20} color={COLORS.TEXT_BRIGHT} />
+                  <Text style={styles.settingsOptionText}>Notifications</Text>
+                  <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.TEXT_MUTED} />
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.settingsOption}>
+                  <MaterialCommunityIcons name="shield" size={20} color={COLORS.TEXT_BRIGHT} />
+                  <Text style={styles.settingsOptionText}>Privacy & Safety</Text>
+                  <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.TEXT_MUTED} />
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.settingsOption}>
+                  <MaterialCommunityIcons name="palette" size={20} color={COLORS.TEXT_BRIGHT} />
+                  <Text style={styles.settingsOptionText}>Appearance</Text>
+                  <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.TEXT_MUTED} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Logout Button */}
+              <View style={styles.settingsSection}>
+                <TouchableOpacity
+                  style={styles.logoutButton}
+                  onPress={() => {
+                    if (!onLogout) {
+                      console.error('onLogout function is not provided');
+                      return;
+                    }
+                    
+                    // Đóng modal trước
+                    setShowSettings(false);
+                    
+                    // Sử dụng window.confirm cho web, Alert.alert cho mobile
+                    if (Platform.OS === 'web') {
+                      // Web: dùng window.confirm (đơn giản và hoạt động tốt trên web)
+                      const confirmed = window.confirm('Bạn có chắc chắn muốn đăng xuất?');
+                      if (confirmed) {
+                        onLogout();
+                      }
+                    } else {
+                      // Mobile: dùng Alert.alert
+                      Alert.alert(
+                        'Logout',
+                        'Bạn có chắc chắn muốn đăng xuất?',
+                        [
+                          {
+                            text: 'Hủy',
+                            style: 'cancel',
+                          },
+                          {
+                            text: 'Logout',
+                            style: 'destructive',
+                            onPress: () => {
+                              onLogout();
+                            },
+                          },
+                        ],
+                        { cancelable: true }
+                      );
+                    }
+                  }}
+                >
+                  <MaterialCommunityIcons name="logout" size={20} color={COLORS.ERROR} />
+                  <Text style={styles.logoutButtonText}>Logout</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -427,6 +576,99 @@ const styles = StyleSheet.create({
   userActionButton: {
     padding: 6,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  settingsModal: {
+    width: '90%',
+    maxWidth: 400,
+    backgroundColor: COLORS.SIDEBAR,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.BORDER,
+    maxHeight: '80%',
+  },
+  settingsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.BORDER,
+  },
+  settingsTitle: {
+    color: COLORS.TEXT_BRIGHT,
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  settingsContent: {
+    padding: 20,
+  },
+  settingsSection: {
+    marginBottom: 20,
+  },
+  userInfoSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    backgroundColor: COLORS.INPUT_BG,
+    borderRadius: 8,
+  },
+  settingsAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  userInfoText: {
+    flex: 1,
+  },
+  settingsUserName: {
+    color: COLORS.TEXT_BRIGHT,
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  settingsUserEmail: {
+    color: COLORS.TEXT_MUTED,
+    fontSize: 14,
+  },
+  settingsOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    backgroundColor: COLORS.INPUT_BG,
+    gap: 12,
+  },
+  settingsOptionText: {
+    flex: 1,
+    color: COLORS.TEXT_BRIGHT,
+    fontSize: 15,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: COLORS.ERROR,
+    gap: 12,
+  },
+  logoutButtonText: {
+    flex: 1,
+    color: COLORS.ERROR,
+    fontSize: 15,
+    fontWeight: '600',
+  },
   mainContent: {
     flex: 1,
     width: Platform.OS === 'web' ? 'auto' : '100%',
@@ -437,6 +679,9 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.BORDER,
     paddingHorizontal: 16,
     paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -445,8 +690,24 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    marginBottom: 12,
     gap: 8,
+    flex: 1,
+  },
+  createServerButton: {
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  createServerButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  createServerButtonText: {
+    color: COLORS.WHITE,
+    fontSize: 14,
+    fontWeight: '600',
   },
   searchInput: {
     flex: 1,

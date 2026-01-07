@@ -10,16 +10,22 @@ import {
   ScrollView,
   Animated,
   Easing,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import COLORS from '../constants/colors';
+import { authAPI } from '../services/api';
 
 export default function LoginScreen({ onLogin, onNavigateToRegister, onForgotPassword }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [focusedInput, setFocusedInput] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({ email: '', password: '', general: '' });
+  const passwordInputRef = useRef(null);
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -89,23 +95,93 @@ export default function LoginScreen({ onLogin, onNavigateToRegister, onForgotPas
     ).start();
   }, []);
 
-  const handleLogin = () => {
-    if (email.trim() && password.trim()) {
-      // Button press animation
-      Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: 0.95,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        onLogin();
+  // Validation functions
+  const validateEmail = (emailValue) => {
+    if (!emailValue.trim()) {
+      return 'Email hoặc Username không được để trống';
+    }
+    return '';
+  };
+
+  const validatePassword = (passwordValue) => {
+    if (!passwordValue.trim()) {
+      return 'Mật khẩu không được để trống';
+    }
+    if (passwordValue.length < 6) {
+      return 'Mật khẩu phải có ít nhất 6 ký tự';
+    }
+    return '';
+  };
+
+  const handleEmailChange = (text) => {
+    setEmail(text);
+    if (errors.email) {
+      setErrors({ ...errors, email: validateEmail(text) });
+    }
+  };
+
+  const handlePasswordChange = (text) => {
+    setPassword(text);
+    if (errors.password) {
+      setErrors({ ...errors, password: validatePassword(text) });
+    }
+  };
+
+  const handleLogin = async () => {
+    // Clear previous errors
+    setErrors({ email: '', password: '', general: '' });
+
+    // Validate all fields
+    const emailError = validateEmail(email);
+    const passwordError = validatePassword(password);
+
+    if (emailError || passwordError) {
+      setErrors({
+        email: emailError,
+        password: passwordError,
+        general: '',
       });
+      return;
+    }
+
+    setLoading(true);
+    
+    // Button press animation
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    try {
+      const response = await authAPI.login(email.trim(), password);
+      
+      if (response.success) {
+        setErrors({ email: '', password: '', general: '' });
+        // Tự động chuyển vào app sau khi đăng nhập thành công
+        onLogin(response.user, response.token);
+      } else {
+        setErrors({
+          email: '',
+          password: '',
+          general: response.message || 'Đăng nhập thất bại',
+        });
+      }
+    } catch (error) {
+      setErrors({
+        email: '',
+        password: '',
+        general: error.message || 'Không thể kết nối đến server. Vui lòng thử lại sau.',
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -237,21 +313,41 @@ export default function LoginScreen({ onLogin, onNavigateToRegister, onForgotPas
               </View>
               <View style={[
                 styles.inputWrapper,
-                focusedInput === 'email' && styles.inputWrapperFocused
+                focusedInput === 'email' && styles.inputWrapperFocused,
+                errors.email && styles.inputWrapperError
               ]}>
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your email or phone"
                   placeholderTextColor={COLORS.TEXT_MUTED}
                   value={email}
-                  onChangeText={setEmail}
-                  onFocus={() => setFocusedInput('email')}
-                  onBlur={() => setFocusedInput(null)}
+                  onChangeText={handleEmailChange}
+                  onFocus={() => {
+                    setFocusedInput('email');
+                    if (errors.email) {
+                      setErrors({ ...errors, email: '' });
+                    }
+                  }}
+                  onBlur={() => {
+                    setFocusedInput(null);
+                    setErrors({ ...errors, email: validateEmail(email) });
+                  }}
+                  onSubmitEditing={() => {
+                    // Khi nhấn Enter ở email, focus vào password
+                    passwordInputRef.current?.focus();
+                  }}
+                  returnKeyType="next"
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
               </View>
+              {errors.email ? (
+                <View style={styles.errorContainer}>
+                  <MaterialCommunityIcons name="alert-circle" size={14} color={COLORS.ERROR} />
+                  <Text style={styles.errorText}>{errors.email}</Text>
+                </View>
+              ) : null}
             </Animated.View>
 
             {/* Password Input */}
@@ -272,16 +368,28 @@ export default function LoginScreen({ onLogin, onNavigateToRegister, onForgotPas
               </View>
               <View style={[
                 styles.inputWrapper,
-                focusedInput === 'password' && styles.inputWrapperFocused
+                focusedInput === 'password' && styles.inputWrapperFocused,
+                errors.password && styles.inputWrapperError
               ]}>
                 <TextInput
+                  ref={passwordInputRef}
                   style={styles.passwordInput}
                   placeholder="Enter your password"
                   placeholderTextColor={COLORS.TEXT_MUTED}
                   value={password}
-                  onChangeText={setPassword}
-                  onFocus={() => setFocusedInput('password')}
-                  onBlur={() => setFocusedInput(null)}
+                  onChangeText={handlePasswordChange}
+                  onFocus={() => {
+                    setFocusedInput('password');
+                    if (errors.password) {
+                      setErrors({ ...errors, password: '' });
+                    }
+                  }}
+                  onBlur={() => {
+                    setFocusedInput(null);
+                    setErrors({ ...errors, password: validatePassword(password) });
+                  }}
+                  onSubmitEditing={handleLogin}
+                  returnKeyType="done"
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -297,7 +405,26 @@ export default function LoginScreen({ onLogin, onNavigateToRegister, onForgotPas
                   />
                 </TouchableOpacity>
               </View>
+              {errors.password ? (
+                <View style={styles.errorContainer}>
+                  <MaterialCommunityIcons name="alert-circle" size={14} color={COLORS.ERROR} />
+                  <Text style={styles.errorText}>{errors.password}</Text>
+                </View>
+              ) : null}
             </Animated.View>
+
+            {/* General Error Message */}
+            {errors.general ? (
+              <Animated.View
+                style={[
+                  styles.generalErrorContainer,
+                  { opacity: fadeAnim }
+                ]}
+              >
+                <MaterialCommunityIcons name="alert-circle" size={18} color={COLORS.ERROR} />
+                <Text style={styles.generalErrorText}>{errors.general}</Text>
+              </Animated.View>
+            ) : null}
 
             {/* Forgot Password Link */}
             <Animated.View
@@ -322,12 +449,12 @@ export default function LoginScreen({ onLogin, onNavigateToRegister, onForgotPas
             >
               <TouchableOpacity
                 onPress={handleLogin}
-                disabled={!email.trim() || !password.trim()}
+                disabled={!email.trim() || !password.trim() || loading}
                 activeOpacity={0.8}
               >
                 <LinearGradient
                   colors={
-                    email.trim() && password.trim()
+                    email.trim() && password.trim() && !loading
                       ? [COLORS.ACCENT, COLORS.ACCENT_PINK]
                       : [COLORS.INPUT_BG, COLORS.INPUT_BG]
                   }
@@ -335,11 +462,17 @@ export default function LoginScreen({ onLogin, onNavigateToRegister, onForgotPas
                   end={{ x: 1, y: 0 }}
                   style={[
                     styles.loginButton,
-                    (!email.trim() || !password.trim()) && styles.loginButtonDisabled
+                    (!email.trim() || !password.trim() || loading) && styles.loginButtonDisabled
                   ]}
                 >
-                  <Text style={styles.loginButtonText}>Log In</Text>
-                  <MaterialCommunityIcons name="arrow-right" size={20} color={COLORS.WHITE} />
+                  {loading ? (
+                    <ActivityIndicator color={COLORS.WHITE} />
+                  ) : (
+                    <>
+                      <Text style={styles.loginButtonText}>Log In</Text>
+                      <MaterialCommunityIcons name="arrow-right" size={20} color={COLORS.WHITE} />
+                    </>
+                  )}
                 </LinearGradient>
               </TouchableOpacity>
             </Animated.View>
@@ -586,5 +719,35 @@ const styles = StyleSheet.create({
   registerText: {
     color: COLORS.TEXT_MUTED,
     fontSize: 14,
+  },
+  inputWrapperError: {
+    borderColor: COLORS.ERROR,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 6,
+  },
+  errorText: {
+    color: COLORS.ERROR,
+    fontSize: 12,
+    flex: 1,
+  },
+  generalErrorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: COLORS.ERROR,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  generalErrorText: {
+    color: COLORS.ERROR,
+    fontSize: 13,
+    flex: 1,
   },
 });

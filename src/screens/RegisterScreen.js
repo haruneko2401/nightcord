@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import COLORS from '../constants/colors';
+import { authAPI } from '../services/api';
 
 export default function RegisterScreen({ onRegister, onNavigateToLogin }) {
   const [email, setEmail] = useState('');
@@ -24,10 +27,265 @@ export default function RegisterScreen({ onRegister, onNavigateToLogin }) {
   const [year, setYear] = useState('');
   const [emailUpdates, setEmailUpdates] = useState(false);
   const [focusedInput, setFocusedInput] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({
+    email: '',
+    username: '',
+    password: '',
+    dateOfBirth: '',
+    general: '',
+  });
+  
+  // Refs for input navigation
+  const displayNameInputRef = useRef(null);
+  const usernameInputRef = useRef(null);
+  const passwordInputRef = useRef(null);
+  const monthInputRef = useRef(null);
+  const dayInputRef = useRef(null);
+  const yearInputRef = useRef(null);
 
-  const handleRegister = () => {
-    if (email.trim() && username.trim() && password.trim() && month && day && year) {
-      onRegister();
+  // Validation functions
+  const validateEmail = (emailValue) => {
+    if (!emailValue.trim()) {
+      return 'Email không được để trống';
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailValue.trim())) {
+      return 'Email không hợp lệ';
+    }
+    return '';
+  };
+
+  const validateUsername = (usernameValue) => {
+    if (!usernameValue.trim()) {
+      return 'Username không được để trống';
+    }
+    if (usernameValue.trim().length < 3) {
+      return 'Username phải có ít nhất 3 ký tự';
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(usernameValue.trim())) {
+      return 'Username chỉ được chứa chữ cái, số và dấu gạch dưới';
+    }
+    return '';
+  };
+
+  const validatePassword = (passwordValue) => {
+    if (!passwordValue.trim()) {
+      return 'Mật khẩu không được để trống';
+    }
+    if (passwordValue.length < 6) {
+      return 'Mật khẩu phải có ít nhất 6 ký tự';
+    }
+    return '';
+  };
+
+  // Helper functions to limit input values
+  const handleMonthChange = (text) => {
+    // Chỉ cho phép số
+    const numericValue = text.replace(/[^0-9]/g, '');
+    
+    if (numericValue === '') {
+      setMonth('');
+      return;
+    }
+    
+    const num = parseInt(numericValue);
+    
+    // Giới hạn tháng từ 01-12
+    if (num === 0) {
+      setMonth('');
+    } else if (num > 12) {
+      setMonth('12');
+    } else if (num < 1) {
+      setMonth('1');
+    } else {
+      setMonth(numericValue);
+    }
+    
+    // Clear error khi đang nhập
+    if (errors.dateOfBirth) {
+      setErrors({ ...errors, dateOfBirth: '' });
+    }
+  };
+
+  const handleDayChange = (text) => {
+    // Chỉ cho phép số
+    const numericValue = text.replace(/[^0-9]/g, '');
+    
+    if (numericValue === '') {
+      setDay('');
+      return;
+    }
+    
+    const num = parseInt(numericValue);
+    const monthNum = parseInt(month) || 12;
+    
+    // Giới hạn ngày từ 01-31, nhưng validate theo tháng
+    let maxDay = 31;
+    if (monthNum === 2) {
+      // Tháng 2: tối đa 29 ngày (sẽ validate năm sau)
+      maxDay = 29;
+    } else if ([4, 6, 9, 11].includes(monthNum)) {
+      // Tháng 4, 6, 9, 11: tối đa 30 ngày
+      maxDay = 30;
+    }
+    
+    if (num === 0) {
+      setDay('');
+    } else if (num > maxDay) {
+      setDay(maxDay.toString());
+    } else if (num < 1) {
+      setDay('1');
+    } else {
+      setDay(numericValue);
+    }
+    
+    // Clear error khi đang nhập
+    if (errors.dateOfBirth) {
+      setErrors({ ...errors, dateOfBirth: '' });
+    }
+  };
+
+  const handleYearChange = (text) => {
+    // Chỉ cho phép số và giới hạn 4 chữ số
+    const numericValue = text.replace(/[^0-9]/g, '').slice(0, 4);
+    
+    if (numericValue === '') {
+      setYear('');
+      return;
+    }
+    
+    const currentYear = new Date().getFullYear();
+    const num = parseInt(numericValue);
+    
+    // Giới hạn năm từ 1900 đến năm hiện tại
+    if (numericValue.length === 4) {
+      if (num < 1900) {
+        setYear('1900');
+      } else if (num > currentYear) {
+        setYear(currentYear.toString());
+      } else {
+        setYear(numericValue);
+      }
+    } else {
+      setYear(numericValue);
+    }
+    
+    // Clear error khi đang nhập
+    if (errors.dateOfBirth) {
+      setErrors({ ...errors, dateOfBirth: '' });
+    }
+  };
+
+  const validateDateOfBirth = (monthValue, dayValue, yearValue) => {
+    if (!monthValue || !dayValue || !yearValue) {
+      return 'Vui lòng nhập đầy đủ ngày tháng năm';
+    }
+
+    const monthNum = parseInt(monthValue);
+    const dayNum = parseInt(dayValue);
+    const yearNum = parseInt(yearValue);
+
+    if (isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+      return 'Tháng không hợp lệ (1-12)';
+    }
+
+    if (isNaN(dayNum) || dayNum < 1 || dayNum > 31) {
+      return 'Ngày không hợp lệ (1-31)';
+    }
+
+    if (isNaN(yearNum) || yearNum < 1900 || yearNum > new Date().getFullYear()) {
+      return `Năm không hợp lệ (1900-${new Date().getFullYear()})`;
+    }
+
+    // Check if date is valid (e.g., Feb 30 doesn't exist)
+    const date = new Date(yearNum, monthNum - 1, dayNum);
+    if (date.getFullYear() !== yearNum || date.getMonth() !== monthNum - 1 || date.getDate() !== dayNum) {
+      return 'Ngày tháng năm không hợp lệ';
+    }
+
+    // Check age (must be at least 13 years old)
+    const today = new Date();
+    const age = today.getFullYear() - yearNum;
+    const monthDiff = today.getMonth() - (monthNum - 1);
+    const dayDiff = today.getDate() - dayNum;
+
+    if (age < 13 || (age === 13 && (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)))) {
+      return 'Bạn phải ít nhất 13 tuổi để đăng ký';
+    }
+
+    return '';
+  };
+
+  const handleRegister = async () => {
+    // Clear previous errors
+    setErrors({
+      email: '',
+      username: '',
+      password: '',
+      dateOfBirth: '',
+      general: '',
+    });
+
+    // Validate all fields
+    const emailError = validateEmail(email);
+    const usernameError = validateUsername(username);
+    const passwordError = validatePassword(password);
+    const dateError = validateDateOfBirth(month, day, year);
+
+    if (emailError || usernameError || passwordError || dateError) {
+      setErrors({
+        email: emailError,
+        username: usernameError,
+        password: passwordError,
+        dateOfBirth: dateError,
+        general: '',
+      });
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await authAPI.register({
+        email: email.trim(),
+        username: username.trim(),
+        password,
+        displayName: displayName.trim() || username.trim(),
+        month,
+        day,
+        year,
+      });
+
+      if (response.success) {
+        setErrors({
+          email: '',
+          username: '',
+          password: '',
+          dateOfBirth: '',
+          general: '',
+        });
+        // Tự động chuyển vào app sau khi đăng ký thành công
+        onRegister(response.user, response.token);
+      } else {
+        setErrors({
+          email: '',
+          username: '',
+          password: '',
+          dateOfBirth: '',
+          general: response.message || 'Đăng ký thất bại',
+        });
+      }
+    } catch (error) {
+      setErrors({
+        email: '',
+        username: '',
+        password: '',
+        dateOfBirth: '',
+        general: error.message || 'Không thể kết nối đến server. Vui lòng thử lại sau.',
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -91,20 +349,45 @@ export default function RegisterScreen({ onRegister, onNavigateToLogin }) {
               </View>
               <View style={[
                 styles.inputWrapper,
-                focusedInput === 'email' && styles.inputWrapperFocused
+                focusedInput === 'email' && styles.inputWrapperFocused,
+                errors.email && styles.inputWrapperError
               ]}>
                 <TextInput
                   style={styles.input}
                   placeholder="Enter your email"
                   placeholderTextColor={COLORS.TEXT_MUTED}
                   value={email}
-                  onChangeText={setEmail}
-                  onFocus={() => setFocusedInput('email')}
-                  onBlur={() => setFocusedInput(null)}
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    if (errors.email) {
+                      setErrors({ ...errors, email: validateEmail(text) });
+                    }
+                  }}
+                  onFocus={() => {
+                    setFocusedInput('email');
+                    if (errors.email) {
+                      setErrors({ ...errors, email: '' });
+                    }
+                  }}
+                  onBlur={() => {
+                    setFocusedInput(null);
+                    setErrors({ ...errors, email: validateEmail(email) });
+                  }}
+                  onSubmitEditing={() => {
+                    // Enter ở email → focus vào displayName hoặc username
+                    displayNameInputRef.current?.focus() || usernameInputRef.current?.focus();
+                  }}
+                  returnKeyType="next"
                   keyboardType="email-address"
                   autoCapitalize="none"
                 />
               </View>
+              {errors.email ? (
+                <View style={styles.errorContainer}>
+                  <MaterialCommunityIcons name="alert-circle" size={14} color={COLORS.ERROR} />
+                  <Text style={styles.errorText}>{errors.email}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Display Name */}
@@ -118,6 +401,7 @@ export default function RegisterScreen({ onRegister, onNavigateToLogin }) {
                 focusedInput === 'displayName' && styles.inputWrapperFocused
               ]}>
                 <TextInput
+                  ref={displayNameInputRef}
                   style={styles.input}
                   placeholder="Display Name (optional)"
                   placeholderTextColor={COLORS.TEXT_MUTED}
@@ -125,6 +409,11 @@ export default function RegisterScreen({ onRegister, onNavigateToLogin }) {
                   onChangeText={setDisplayName}
                   onFocus={() => setFocusedInput('displayName')}
                   onBlur={() => setFocusedInput(null)}
+                  onSubmitEditing={() => {
+                    // Enter ở displayName → focus vào username
+                    usernameInputRef.current?.focus();
+                  }}
+                  returnKeyType="next"
                   autoCapitalize="words"
                 />
               </View>
@@ -140,19 +429,45 @@ export default function RegisterScreen({ onRegister, onNavigateToLogin }) {
               </View>
               <View style={[
                 styles.inputWrapper,
-                focusedInput === 'username' && styles.inputWrapperFocused
+                focusedInput === 'username' && styles.inputWrapperFocused,
+                errors.username && styles.inputWrapperError
               ]}>
                 <TextInput
+                  ref={usernameInputRef}
                   style={styles.input}
                   placeholder="Choose a username"
                   placeholderTextColor={COLORS.TEXT_MUTED}
                   value={username}
-                  onChangeText={setUsername}
-                  onFocus={() => setFocusedInput('username')}
-                  onBlur={() => setFocusedInput(null)}
+                  onChangeText={(text) => {
+                    setUsername(text);
+                    if (errors.username) {
+                      setErrors({ ...errors, username: validateUsername(text) });
+                    }
+                  }}
+                  onFocus={() => {
+                    setFocusedInput('username');
+                    if (errors.username) {
+                      setErrors({ ...errors, username: '' });
+                    }
+                  }}
+                  onBlur={() => {
+                    setFocusedInput(null);
+                    setErrors({ ...errors, username: validateUsername(username) });
+                  }}
+                  onSubmitEditing={() => {
+                    // Enter ở username → focus vào password
+                    passwordInputRef.current?.focus();
+                  }}
+                  returnKeyType="next"
                   autoCapitalize="none"
                 />
               </View>
+              {errors.username ? (
+                <View style={styles.errorContainer}>
+                  <MaterialCommunityIcons name="alert-circle" size={14} color={COLORS.ERROR} />
+                  <Text style={styles.errorText}>{errors.username}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Password */}
@@ -165,16 +480,36 @@ export default function RegisterScreen({ onRegister, onNavigateToLogin }) {
               </View>
               <View style={[
                 styles.inputWrapper,
-                focusedInput === 'password' && styles.inputWrapperFocused
+                focusedInput === 'password' && styles.inputWrapperFocused,
+                errors.password && styles.inputWrapperError
               ]}>
                 <TextInput
+                  ref={passwordInputRef}
                   style={styles.passwordInput}
                   placeholder="Create a password"
                   placeholderTextColor={COLORS.TEXT_MUTED}
                   value={password}
-                  onChangeText={setPassword}
-                  onFocus={() => setFocusedInput('password')}
-                  onBlur={() => setFocusedInput(null)}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    if (errors.password) {
+                      setErrors({ ...errors, password: validatePassword(text) });
+                    }
+                  }}
+                  onFocus={() => {
+                    setFocusedInput('password');
+                    if (errors.password) {
+                      setErrors({ ...errors, password: '' });
+                    }
+                  }}
+                  onBlur={() => {
+                    setFocusedInput(null);
+                    setErrors({ ...errors, password: validatePassword(password) });
+                  }}
+                  onSubmitEditing={() => {
+                    // Enter ở password → focus vào month (date of birth)
+                    monthInputRef.current?.focus();
+                  }}
+                  returnKeyType="next"
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                 />
@@ -189,6 +524,12 @@ export default function RegisterScreen({ onRegister, onNavigateToLogin }) {
                   />
                 </TouchableOpacity>
               </View>
+              {errors.password ? (
+                <View style={styles.errorContainer}>
+                  <MaterialCommunityIcons name="alert-circle" size={14} color={COLORS.ERROR} />
+                  <Text style={styles.errorText}>{errors.password}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Date of Birth - Simplified */}
@@ -199,41 +540,86 @@ export default function RegisterScreen({ onRegister, onNavigateToLogin }) {
                   Date of Birth <Text style={styles.required}>*</Text>
                 </Text>
               </View>
-              <View style={styles.dateRow}>
+              <View style={[
+                styles.dateRow,
+                errors.dateOfBirth && styles.dateRowError
+              ]}>
                 <View style={styles.dateInputWrapper}>
                   <TextInput
-                    style={[styles.dateInput, styles.dateInputMonth]}
+                    ref={monthInputRef}
+                    style={[
+                      styles.dateInput,
+                      styles.dateInputMonth,
+                      errors.dateOfBirth && styles.dateInputError
+                    ]}
                     placeholder="MM"
                     placeholderTextColor={COLORS.TEXT_MUTED}
                     value={month}
-                    onChangeText={setMonth}
+                    onChangeText={handleMonthChange}
+                    onBlur={() => {
+                      setErrors({ ...errors, dateOfBirth: validateDateOfBirth(month, day, year) });
+                    }}
+                    onSubmitEditing={() => {
+                      // Enter ở month → focus vào day
+                      dayInputRef.current?.focus();
+                    }}
+                    returnKeyType="next"
                     maxLength={2}
                     keyboardType="numeric"
                   />
                 </View>
                 <View style={styles.dateInputWrapper}>
                   <TextInput
-                    style={[styles.dateInput, styles.dateInputDay]}
+                    ref={dayInputRef}
+                    style={[
+                      styles.dateInput,
+                      styles.dateInputDay,
+                      errors.dateOfBirth && styles.dateInputError
+                    ]}
                     placeholder="DD"
                     placeholderTextColor={COLORS.TEXT_MUTED}
                     value={day}
-                    onChangeText={setDay}
+                    onChangeText={handleDayChange}
+                    onBlur={() => {
+                      setErrors({ ...errors, dateOfBirth: validateDateOfBirth(month, day, year) });
+                    }}
+                    onSubmitEditing={() => {
+                      // Enter ở day → focus vào year
+                      yearInputRef.current?.focus();
+                    }}
+                    returnKeyType="next"
                     maxLength={2}
                     keyboardType="numeric"
                   />
                 </View>
                 <View style={styles.dateInputWrapper}>
                   <TextInput
-                    style={[styles.dateInput, styles.dateInputYear]}
+                    ref={yearInputRef}
+                    style={[
+                      styles.dateInput,
+                      styles.dateInputYear,
+                      errors.dateOfBirth && styles.dateInputError
+                    ]}
                     placeholder="YYYY"
                     placeholderTextColor={COLORS.TEXT_MUTED}
                     value={year}
-                    onChangeText={setYear}
+                    onChangeText={handleYearChange}
+                    onBlur={() => {
+                      setErrors({ ...errors, dateOfBirth: validateDateOfBirth(month, day, year) });
+                    }}
+                    onSubmitEditing={handleRegister}
+                    returnKeyType="done"
                     maxLength={4}
                     keyboardType="numeric"
                   />
                 </View>
               </View>
+              {errors.dateOfBirth ? (
+                <View style={styles.errorContainer}>
+                  <MaterialCommunityIcons name="alert-circle" size={14} color={COLORS.ERROR} />
+                  <Text style={styles.errorText}>{errors.dateOfBirth}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Email Updates Checkbox */}
@@ -251,6 +637,14 @@ export default function RegisterScreen({ onRegister, onNavigateToLogin }) {
               </Text>
             </View>
 
+            {/* General Error Message */}
+            {errors.general ? (
+              <View style={styles.generalErrorContainer}>
+                <MaterialCommunityIcons name="alert-circle" size={18} color={COLORS.ERROR} />
+                <Text style={styles.generalErrorText}>{errors.general}</Text>
+              </View>
+            ) : null}
+
             {/* Legal Disclaimer */}
             <Text style={styles.disclaimer}>
               By clicking "Create Account," you agree to Nightcord's{' '}
@@ -261,12 +655,12 @@ export default function RegisterScreen({ onRegister, onNavigateToLogin }) {
             {/* Register Button */}
             <TouchableOpacity
               onPress={handleRegister}
-              disabled={!email.trim() || !username.trim() || !password.trim() || !month || !day || !year}
+              disabled={!email.trim() || !username.trim() || !password.trim() || !month || !day || !year || loading}
               activeOpacity={0.8}
             >
               <LinearGradient
                 colors={
-                  email.trim() && username.trim() && password.trim() && month && day && year
+                  email.trim() && username.trim() && password.trim() && month && day && year && !loading
                     ? [COLORS.ACCENT, COLORS.ACCENT_PINK]
                     : [COLORS.INPUT_BG, COLORS.INPUT_BG]
                 }
@@ -274,12 +668,18 @@ export default function RegisterScreen({ onRegister, onNavigateToLogin }) {
                 end={{ x: 1, y: 0 }}
                 style={[
                   styles.registerButton,
-                  (!email.trim() || !username.trim() || !password.trim() || !month || !day || !year) &&
+                  (!email.trim() || !username.trim() || !password.trim() || !month || !day || !year || loading) &&
                   styles.registerButtonDisabled
                 ]}
               >
-                <Text style={styles.registerButtonText}>Create Account</Text>
-                <MaterialCommunityIcons name="arrow-right" size={20} color={COLORS.WHITE} />
+                {loading ? (
+                  <ActivityIndicator color={COLORS.WHITE} />
+                ) : (
+                  <>
+                    <Text style={styles.registerButtonText}>Create Account</Text>
+                    <MaterialCommunityIcons name="arrow-right" size={20} color={COLORS.WHITE} />
+                  </>
+                )}
               </LinearGradient>
             </TouchableOpacity>
 
@@ -571,5 +971,41 @@ const styles = StyleSheet.create({
   loginText: {
     color: COLORS.TEXT_MUTED,
     fontSize: 14,
+  },
+  inputWrapperError: {
+    borderColor: COLORS.ERROR,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 6,
+  },
+  errorText: {
+    color: COLORS.ERROR,
+    fontSize: 12,
+    flex: 1,
+  },
+  dateRowError: {
+    // Visual indicator for date error
+  },
+  dateInputError: {
+    borderColor: COLORS.ERROR,
+  },
+  generalErrorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: COLORS.ERROR,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  generalErrorText: {
+    color: COLORS.ERROR,
+    fontSize: 13,
+    flex: 1,
   },
 });

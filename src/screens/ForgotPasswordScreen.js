@@ -10,10 +10,13 @@ import {
   ScrollView,
   Animated,
   Easing,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import COLORS from '../constants/colors';
+import { authAPI } from '../services/api';
 
 // Modern Input Component với Floating Label (giống LoginScreen)
 const ModernInput = ({ 
@@ -25,6 +28,9 @@ const ModernInput = ({
   keyboardType = 'default',
   autoCapitalize = 'none',
   required = false,
+  error = '',
+  onFocus,
+  onBlur,
 }) => {
   const [focused, setFocused] = useState(false);
   const labelAnim = useRef(new Animated.Value(value ? 1 : 0)).current;
@@ -76,14 +82,15 @@ const ModernInput = ({
     <View style={styles.modernInputContainer}>
       <View style={[
         styles.modernInputWrapper,
-        focused && styles.modernInputFocused
+        focused && styles.modernInputFocused,
+        error && styles.modernInputError
       ]}>
         {icon && (
           <View style={styles.modernIconContainer}>
             <MaterialCommunityIcons 
               name={icon} 
               size={20} 
-              color={focused ? COLORS.ACCENT_SECONDARY : COLORS.TEXT_MUTED} 
+              color={focused ? COLORS.ACCENT_SECONDARY : (error ? COLORS.ERROR : COLORS.TEXT_MUTED)} 
             />
           </View>
         )}
@@ -95,7 +102,7 @@ const ModernInput = ({
               {
                 top: labelTop,
                 fontSize: labelSize,
-                color: focused ? COLORS.ACCENT_SECONDARY : COLORS.TEXT_MUTED,
+                color: focused ? COLORS.ACCENT_SECONDARY : (error ? COLORS.ERROR : COLORS.TEXT_MUTED),
               },
             ]}
           >
@@ -110,13 +117,19 @@ const ModernInput = ({
             placeholderTextColor={COLORS.TEXT_MUTED}
             keyboardType={keyboardType}
             autoCapitalize={autoCapitalize}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
+            onFocus={() => {
+              setFocused(true);
+              onFocus && onFocus();
+            }}
+            onBlur={() => {
+              setFocused(false);
+              onBlur && onBlur();
+            }}
           />
         </View>
       </View>
 
-      {focused && (
+      {focused && !error && (
         <Animated.View
           style={[
             styles.modernGlowBorder,
@@ -124,12 +137,21 @@ const ModernInput = ({
           ]}
         />
       )}
+
+      {error ? (
+        <View style={styles.errorContainer}>
+          <MaterialCommunityIcons name="alert-circle" size={14} color={COLORS.ERROR} />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : null}
     </View>
   );
 };
 
 export default function ForgotPasswordScreen({ onBack, onReset }) {
   const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({ email: '', general: '' });
   
   // Animations - giống hệt LoginScreen
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -199,23 +221,76 @@ export default function ForgotPasswordScreen({ onBack, onReset }) {
     ).start();
   }, []);
 
-  const handleReset = () => {
-    if (email.trim()) {
-      // Button press animation (giống LoginScreen)
-      Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: 0.95,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        onReset && onReset();
+  // Validation function
+  const validateEmail = (emailValue) => {
+    if (!emailValue.trim()) {
+      return 'Email không được để trống';
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailValue.trim())) {
+      return 'Email không hợp lệ';
+    }
+    return '';
+  };
+
+  const handleReset = async () => {
+    // Clear previous errors
+    setErrors({ email: '', general: '' });
+
+    // Validate email
+    const emailError = validateEmail(email);
+    if (emailError) {
+      setErrors({ email: emailError, general: '' });
+      return;
+    }
+
+    setLoading(true);
+
+    // Button press animation
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    try {
+      const response = await authAPI.forgotPassword(email.trim());
+
+      if (response.success) {
+        setErrors({ email: '', general: '' });
+        Alert.alert(
+          'Thành công',
+          response.message || 'Chúng tôi đã gửi link reset mật khẩu đến email của bạn',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                onReset && onReset();
+                onBack();
+              },
+            },
+          ]
+        );
+      } else {
+        setErrors({
+          email: '',
+          general: response.message || 'Không thể gửi email reset mật khẩu',
+        });
+      }
+    } catch (error) {
+      setErrors({
+        email: '',
+        general: error.message || 'Không thể kết nối đến server. Vui lòng thử lại sau.',
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -334,11 +409,38 @@ export default function ForgotPasswordScreen({ onBack, onReset }) {
               label="Email"
               icon="email-outline"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => {
+                setEmail(text);
+                if (errors.email) {
+                  setErrors({ ...errors, email: validateEmail(text) });
+                }
+              }}
               placeholder="Enter your email"
               keyboardType="email-address"
               required
+              error={errors.email}
+              onFocus={() => {
+                if (errors.email) {
+                  setErrors({ ...errors, email: '' });
+                }
+              }}
+              onBlur={() => {
+                setErrors({ ...errors, email: validateEmail(email) });
+              }}
             />
+
+            {/* General Error Message */}
+            {errors.general ? (
+              <Animated.View
+                style={[
+                  styles.generalErrorContainer,
+                  { opacity: fadeAnim }
+                ]}
+              >
+                <MaterialCommunityIcons name="alert-circle" size={18} color={COLORS.ERROR} />
+                <Text style={styles.generalErrorText}>{errors.general}</Text>
+              </Animated.View>
+            ) : null}
 
             {/* Reset Button với Animation - giống LoginScreen */}
             <Animated.View
@@ -348,12 +450,12 @@ export default function ForgotPasswordScreen({ onBack, onReset }) {
             >
               <TouchableOpacity
                 onPress={handleReset}
-                disabled={!email.trim()}
+                disabled={!email.trim() || loading}
                 activeOpacity={0.8}
               >
                 <LinearGradient
                   colors={
-                    email.trim()
+                    email.trim() && !loading
                       ? [COLORS.ACCENT, COLORS.ACCENT_PINK]
                       : [COLORS.INPUT_BG, COLORS.INPUT_BG]
                   }
@@ -361,11 +463,17 @@ export default function ForgotPasswordScreen({ onBack, onReset }) {
                   end={{ x: 1, y: 0 }}
                   style={[
                     styles.resetButton,
-                    (!email.trim()) && styles.resetButtonDisabled
+                    (!email.trim() || loading) && styles.resetButtonDisabled
                   ]}
                 >
-                  <Text style={styles.resetButtonText}>Send Reset Link</Text>
-                  <MaterialCommunityIcons name="arrow-right" size={20} color={COLORS.WHITE} />
+                  {loading ? (
+                    <ActivityIndicator color={COLORS.WHITE} />
+                  ) : (
+                    <>
+                      <Text style={styles.resetButtonText}>Send Reset Link</Text>
+                      <MaterialCommunityIcons name="arrow-right" size={20} color={COLORS.WHITE} />
+                    </>
+                  )}
                 </LinearGradient>
               </TouchableOpacity>
             </Animated.View>
@@ -613,5 +721,35 @@ const styles = StyleSheet.create({
     color: COLORS.ACCENT,
     fontSize: 14,
     fontWeight: '500',
+  },
+  modernInputError: {
+    borderColor: COLORS.ERROR,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 6,
+  },
+  errorText: {
+    color: COLORS.ERROR,
+    fontSize: 12,
+    flex: 1,
+  },
+  generalErrorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: COLORS.ERROR,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  generalErrorText: {
+    color: COLORS.ERROR,
+    fontSize: 13,
+    flex: 1,
   },
 });

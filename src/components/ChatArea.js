@@ -6,6 +6,88 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import COLORS from '../constants/colors';
 
+// Typing Indicator Component
+const TypingIndicator = ({ typingUsers }) => {
+  const dot1Anim = useRef(new Animated.Value(0.4)).current;
+  const dot2Anim = useRef(new Animated.Value(0.4)).current;
+  const dot3Anim = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    const animateDots = () => {
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(dot1Anim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot2Anim, {
+            toValue: 0.4,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot3Anim, {
+            toValue: 0.4,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(dot1Anim, {
+            toValue: 0.4,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot2Anim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot3Anim, {
+            toValue: 0.4,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(dot1Anim, {
+            toValue: 0.4,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot2Anim, {
+            toValue: 0.4,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot3Anim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]).start(() => animateDots());
+    };
+
+    animateDots();
+  }, []);
+
+  return (
+    <View style={styles.typingIndicator}>
+      <View style={styles.typingDots}>
+        <Animated.View style={[styles.typingDot, { opacity: dot1Anim }]} />
+        <Animated.View style={[styles.typingDot, { opacity: dot2Anim }]} />
+        <Animated.View style={[styles.typingDot, { opacity: dot3Anim }]} />
+      </View>
+      <Text style={styles.typingText}>
+        {typingUsers.length === 1 
+          ? `${typingUsers[0]} đang soạn...`
+          : `${typingUsers.length} người đang soạn...`}
+      </Text>
+    </View>
+  );
+};
+
 const MessageItem = ({ item, isOwnMessage, index }) => {
   const slideAnim = useRef(new Animated.Value(50)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -98,11 +180,13 @@ const MessageItem = ({ item, isOwnMessage, index }) => {
   );
 };
 
-export default function ChatArea({ messages, onSendMessage, channelName = 'chung' }) {
+export default function ChatArea({ messages, onSendMessage, channelName = 'chung', typingUsers = [] }) {
   const [text, setText] = useState('');
   const [focused, setFocused] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
   const inputScale = useRef(new Animated.Value(1)).current;
   const sendButtonScale = useRef(new Animated.Value(0)).current;
+  const typingTimeoutRef = useRef(null);
 
   useEffect(() => {
     // Send button appear animation
@@ -123,6 +207,32 @@ export default function ChatArea({ messages, onSendMessage, channelName = 'chung
     }
   }, [text]);
 
+  // Handle typing indicator
+  useEffect(() => {
+    if (text.trim()) {
+      setIsTyping(true);
+      // Clear previous timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      // Set typing to false after 3 seconds of no typing
+      typingTimeoutRef.current = setTimeout(() => {
+        setIsTyping(false);
+      }, 3000);
+    } else {
+      setIsTyping(false);
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    }
+
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [text]);
+
   const handleSend = () => {
     if (text.trim()) {
       // Button press animation
@@ -141,6 +251,17 @@ export default function ChatArea({ messages, onSendMessage, channelName = 'chung
       
       onSendMessage(text);
       setText('');
+    }
+  };
+
+  const handleKeyPress = (e) => {
+    // Enter để gửi, Shift+Enter để xuống dòng
+    const key = e.nativeEvent?.key || e.key;
+    const shiftKey = e.nativeEvent?.shiftKey || e.shiftKey;
+    
+    if (key === 'Enter' && !shiftKey) {
+      e.preventDefault?.();
+      handleSend();
     }
   };
 
@@ -194,6 +315,11 @@ export default function ChatArea({ messages, onSendMessage, channelName = 'chung
           contentContainerStyle={styles.listContent}
           style={styles.list}
           showsVerticalScrollIndicator={false}
+          ListFooterComponent={
+            typingUsers.length > 0 ? (
+              <TypingIndicator typingUsers={typingUsers} />
+            ) : null
+          }
         />
 
         {/* Ô nhập tin nhắn với Animation */}
@@ -228,7 +354,9 @@ export default function ChatArea({ messages, onSendMessage, channelName = 'chung
               onFocus={() => setFocused(true)}
               onBlur={() => setFocused(false)}
               onSubmitEditing={handleSend}
+              onKeyPress={handleKeyPress}
               multiline
+              blurOnSubmit={false}
             />
             <Animated.View
               style={{
@@ -451,5 +579,37 @@ const styles = StyleSheet.create({
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  typingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  typingDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  typingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.TEXT_MUTED,
+  },
+  typingDot1: {
+    opacity: 0.4,
+  },
+  typingDot2: {
+    opacity: 0.6,
+  },
+  typingDot3: {
+    opacity: 0.8,
+  },
+  typingText: {
+    color: COLORS.TEXT_MUTED,
+    fontSize: 13,
+    fontStyle: 'italic',
   },
 });

@@ -1,6 +1,6 @@
 // App.js
 import React, { useState, useEffect } from 'react';
-import { StatusBar, View, StyleSheet, Platform } from 'react-native';
+import { StatusBar, View, Text, StyleSheet, Platform } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
@@ -20,11 +20,14 @@ import VoiceChannelScreen from './src/components/VoiceChannelScreen';
 import MobileVoiceChannelScreen from './src/components/MobileVoiceChannelScreen';
 import COLORS from './src/constants/colors';
 import { CHANNEL_MESSAGES, SERVERS, CHANNELS, VOICE_PARTICIPANTS } from './src/data/mock';
+import { authAPI, getStoredToken } from './src/services/api';
 
 export default function App() {
   // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentScreen, setCurrentScreen] = useState('login'); // 'login', 'register', 'forgot-password'
+  const [user, setUser] = useState(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
   
   // Server creation state
   const [showCreateServerModal, setShowCreateServerModal] = useState(false);
@@ -47,6 +50,47 @@ export default function App() {
   const [voiceParticipants, setVoiceParticipants] = useState([]);
   const [isMuted, setIsMuted] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
+
+  // Check authentication on mount
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  // Check if user is already authenticated
+  const checkAuth = async () => {
+    try {
+      // Check if we have a token first
+      const token = await getStoredToken();
+      
+      if (!token) {
+        // No token, skip API call
+        setIsAuthenticated(false);
+        setCheckingAuth(false);
+        return;
+      }
+
+      // Try to verify token, but don't fail if backend is not available
+      try {
+        const response = await authAPI.verifyToken();
+        if (response.success && response.user) {
+          setUser(response.user);
+          setIsAuthenticated(true);
+        } else {
+          setIsAuthenticated(false);
+        }
+      } catch (apiError) {
+        // Backend might not be running, just continue without auth
+        console.log('Backend not available, continuing without auth');
+        setIsAuthenticated(false);
+      }
+    } catch (error) {
+      // Not authenticated or token expired or network error
+      console.log('Auth check failed:', error.message);
+      setIsAuthenticated(false);
+    } finally {
+      setCheckingAuth(false);
+    }
+  };
 
   // Cập nhật messages khi chuyển channel
   useEffect(() => {
@@ -86,12 +130,34 @@ export default function App() {
   };
 
   // Authentication handlers
-  const handleLogin = () => {
+  const handleLogin = (userData, token) => {
+    if (userData) {
+      setUser(userData);
+    }
     setIsAuthenticated(true);
   };
 
-  const handleRegister = () => {
+  const handleRegister = (userData, token) => {
+    if (userData) {
+      setUser(userData);
+    }
     setIsAuthenticated(true);
+  };
+
+  const handleLogout = async () => {
+    try {
+      console.log('Logging out...');
+      await authAPI.logout();
+    } catch (error) {
+      console.error('Logout API error:', error);
+      // Vẫn tiếp tục logout ngay cả khi API call thất bại
+    } finally {
+      // Luôn clear state và chuyển về login
+      console.log('Clearing user state and redirecting to login');
+      setUser(null);
+      setIsAuthenticated(false);
+      setCurrentScreen('login');
+    }
   };
 
   const handleNavigateToRegister = () => {
@@ -187,6 +253,18 @@ export default function App() {
   };
 
   const currentServerName = servers.find(s => s.id === activeServer)?.name;
+
+  // Show loading while checking authentication
+  if (checkingAuth) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar barStyle="light-content" backgroundColor={COLORS.BACKGROUND} />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.BACKGROUND }}>
+          <Text style={{ color: COLORS.TEXT_BRIGHT }}>Đang tải...</Text>
+        </View>
+      </SafeAreaProvider>
+    );
+  }
 
   // Show Login/Register/ForgotPassword screens if not authenticated
   if (!isAuthenticated) {
@@ -357,7 +435,11 @@ export default function App() {
         {Platform.OS === 'web' ? (
           /* Web Layout */
           viewMode === 'home' ? (
-            <FriendsScreen />
+            <FriendsScreen 
+              onLogout={handleLogout} 
+              user={user} 
+              onCreateServer={handleCreateServerClick}
+            />
           ) : isInVoiceChannel ? (
             <VoiceChannelScreen
               channelName={CHANNELS.find(c => c.id === activeChannel)?.name || 'voice-room'}
@@ -391,13 +473,14 @@ export default function App() {
                 messages={messages} 
                 onSendMessage={handleSendMessage}
                 channelName={CHANNELS.find(c => c.id === activeChannel)?.name || 'chung'}
+                typingUsers={[]}
               />
             </>
           )
         ) : (
           /* Mobile Layout */
           viewMode === 'home' ? (
-            <MobileFriendsScreen />
+            <MobileFriendsScreen onLogout={handleLogout} user={user} />
           ) : mobileScreen === 'servers' ? (
             <MobileServerList
               servers={servers}
@@ -440,6 +523,7 @@ export default function App() {
               messages={messages}
               onSendMessage={handleSendMessage}
               onBack={handleMobileBackToChannels}
+              typingUsers={[]}
             />
           )
         )}
