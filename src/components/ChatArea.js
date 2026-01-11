@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  View, Text, FlatList, Image, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Animated 
+import {
+  View, Text, FlatList, Image, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Animated
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import COLORS from '../constants/colors';
+import MembersSidebar from './MembersSidebar';
 
 // Typing Indicator Component
 const TypingIndicator = ({ typingUsers }) => {
@@ -80,7 +81,7 @@ const TypingIndicator = ({ typingUsers }) => {
         <Animated.View style={[styles.typingDot, { opacity: dot3Anim }]} />
       </View>
       <Text style={styles.typingText}>
-        {typingUsers.length === 1 
+        {typingUsers.length === 1
           ? `${typingUsers[0]} đang soạn...`
           : `${typingUsers.length} người đang soạn...`}
       </Text>
@@ -89,30 +90,22 @@ const TypingIndicator = ({ typingUsers }) => {
 };
 
 const MessageItem = ({ item, isOwnMessage, index }) => {
-  const slideAnim = useRef(new Animated.Value(50)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
 
   useEffect(() => {
-    // Stagger animation cho messages
+    // Basic fade in / slide up
     Animated.parallel([
       Animated.timing(slideAnim, {
         toValue: 0,
-        duration: 400,
-        delay: index * 50,
+        duration: 200,
+        delay: index * 30,
         useNativeDriver: true,
       }),
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 400,
-        delay: index * 50,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        delay: index * 50,
-        friction: 5,
-        tension: 40,
+        duration: 200,
+        delay: index * 30,
         useNativeDriver: true,
       }),
     ]).start();
@@ -122,143 +115,43 @@ const MessageItem = ({ item, isOwnMessage, index }) => {
     <Animated.View
       style={[
         styles.msgContainer,
-        isOwnMessage && styles.msgContainerOwn,
         {
           opacity: fadeAnim,
-          transform: [
-            { translateX: isOwnMessage ? slideAnim : slideAnim },
-            { scale: scaleAnim },
-          ],
+          transform: [{ translateY: slideAnim }],
         },
       ]}
     >
-      {!isOwnMessage && (
-        <Animated.Image 
-          source={{ uri: item.avatar }} 
-          style={[
-            styles.avatar,
-            {
-              opacity: fadeAnim,
-              transform: [{ scale: scaleAnim }],
-            }
-          ]} 
-        />
-      )}
-      <View style={[styles.msgContent, isOwnMessage && styles.msgContentOwn]}>
-        {!isOwnMessage && (
-          <View style={styles.msgHeader}>
-            <Text style={styles.username}>{item.user}</Text>
-            <View style={styles.timestampContainer}>
-              <Text style={styles.timestamp}>{item.time}</Text>
-            </View>
-          </View>
-        )}
-        <Animated.View
-          style={[
-            styles.msgBubble,
-            isOwnMessage ? styles.msgBubbleOwn : styles.msgBubbleOther,
-            {
-              transform: [{ scale: scaleAnim }],
-            },
-          ]}
-        >
-          {isOwnMessage ? (
-            <LinearGradient
-              colors={[COLORS.ACCENT, COLORS.ACCENT_PINK]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.msgBubbleGradient}
-            >
-              <Text style={styles.msgTextOwn}>{item.content}</Text>
-            </LinearGradient>
-          ) : (
-            <Text style={styles.msgText}>{item.content}</Text>
-          )}
-        </Animated.View>
+      <Image
+        source={{ uri: item.avatar }}
+        style={styles.avatar}
+      />
+      <View style={styles.msgContent}>
+        <View style={styles.msgHeader}>
+          <Text style={styles.username}>{item.user || item.username || 'User'}</Text>
+          <Text style={styles.timestamp}>{item.time}</Text>
+        </View>
+        <Text style={styles.msgText}>{item.content}</Text>
       </View>
     </Animated.View>
   );
 };
 
-export default function ChatArea({ messages, onSendMessage, channelName = 'chung', typingUsers = [] }) {
+export default function ChatArea({ messages, onSendMessage, channelName = 'chung', typingUsers = [], onBack, isDM = false, dmUser }) {
   const [text, setText] = useState('');
+  const [showMembers, setShowMembers] = useState(false);
   const [focused, setFocused] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
-  const inputScale = useRef(new Animated.Value(1)).current;
-  const sendButtonScale = useRef(new Animated.Value(0)).current;
-  const typingTimeoutRef = useRef(null);
-
-  useEffect(() => {
-    // Send button appear animation
-    if (text.trim()) {
-      Animated.spring(sendButtonScale, {
-        toValue: 1,
-        friction: 4,
-        tension: 40,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      Animated.spring(sendButtonScale, {
-        toValue: 0,
-        friction: 4,
-        tension: 40,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [text]);
-
-  // Handle typing indicator
-  useEffect(() => {
-    if (text.trim()) {
-      setIsTyping(true);
-      // Clear previous timeout
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-      // Set typing to false after 3 seconds of no typing
-      typingTimeoutRef.current = setTimeout(() => {
-        setIsTyping(false);
-      }, 3000);
-    } else {
-      setIsTyping(false);
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-    }
-
-    return () => {
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-    };
-  }, [text]);
 
   const handleSend = () => {
     if (text.trim()) {
-      // Button press animation
-      Animated.sequence([
-        Animated.timing(inputScale, {
-          toValue: 0.95,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-        Animated.timing(inputScale, {
-          toValue: 1,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-      ]).start();
-      
       onSendMessage(text);
       setText('');
     }
   };
 
   const handleKeyPress = (e) => {
-    // Enter để gửi, Shift+Enter để xuống dòng
     const key = e.nativeEvent?.key || e.key;
     const shiftKey = e.nativeEvent?.shiftKey || e.shiftKey;
-    
+
     if (key === 'Enter' && !shiftKey) {
       e.preventDefault?.();
       handleSend();
@@ -266,177 +159,266 @@ export default function ChatArea({ messages, onSendMessage, channelName = 'chung
   };
 
   return (
-    <LinearGradient
-      colors={[COLORS.BACKGROUND, COLORS.CHANNEL_LIST]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
-      style={styles.container}
-    >
-      {/* Header Kênh với Gradient */}
-      <LinearGradient
-        colors={[COLORS.HEADER, COLORS.CHANNEL_LIST]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={styles.header}
-      >
-        <View style={styles.headerContent}>
-          <MaterialCommunityIcons name="pound" size={24} color={COLORS.ACCENT_SECONDARY} />
-          <Text style={styles.headerTitle}>{channelName}</Text>
-          <View style={styles.headerDivider} />
-          <Text style={styles.headerDescription}>
-            {channelName === 'voice-room' ? 'Voice channel - Join to chat' : 'General chat for everyone'}
-          </Text>
-        </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerButton}>
-            <MaterialCommunityIcons name="bell-outline" size={20} color={COLORS.TEXT_MUTED} />
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        {onBack && (
+          <TouchableOpacity onPress={onBack} style={{ marginRight: 8, padding: 4 }}>
+            <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.TEXT_BRIGHT} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerButton}>
-            <MaterialCommunityIcons name="pin-outline" size={20} color={COLORS.TEXT_MUTED} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerButton}>
-            <MaterialCommunityIcons name="account-group-outline" size={20} color={COLORS.TEXT_MUTED} />
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
+        )}
 
-      {/* Danh sách tin nhắn */}
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView}
-      >
-        <FlatList
-          data={messages}
-          keyExtractor={item => item.id}
-          renderItem={({ item, index }) => {
-            const isOwnMessage = item.user === 'Bạn';
-            return <MessageItem item={item} isOwnMessage={isOwnMessage} index={index} />;
-          }}
-          contentContainerStyle={styles.listContent}
-          style={styles.list}
-          showsVerticalScrollIndicator={false}
-          ListFooterComponent={
-            typingUsers.length > 0 ? (
-              <TypingIndicator typingUsers={typingUsers} />
-            ) : null
-          }
-        />
-
-        {/* Ô nhập tin nhắn với Animation */}
-        <Animated.View
-          style={[
-            styles.inputWrapper,
-            {
-              transform: [{ scale: inputScale }],
-            },
-          ]}
-        >
-          <View style={[
-            styles.inputContainer,
-            focused && styles.inputContainerFocused
-          ]}>
-            <TouchableOpacity style={styles.plusIcon}>
-              <LinearGradient
-                colors={[COLORS.ACCENT_BLUE, COLORS.ACCENT_CYAN]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.plusIconGradient}
-              >
-                <Ionicons name="add" size={20} color={COLORS.WHITE} />
-              </LinearGradient>
-            </TouchableOpacity>
-            <TextInput
-              style={styles.input}
-              placeholder={`Nhắn tin cho #${channelName}`}
-              placeholderTextColor={COLORS.TEXT_MUTED}
-              value={text}
-              onChangeText={setText}
-              onFocus={() => setFocused(true)}
-              onBlur={() => setFocused(false)}
-              onSubmitEditing={handleSend}
-              onKeyPress={handleKeyPress}
-              multiline
-              blurOnSubmit={false}
-            />
-            <Animated.View
-              style={{
-                transform: [{ scale: sendButtonScale }],
-                opacity: sendButtonScale,
-              }}
-            >
-              <TouchableOpacity 
-                onPress={handleSend}
-                disabled={!text.trim()}
-                style={styles.sendButton}
-              >
-                {text.trim() ? (
-                  <LinearGradient
-                    colors={[COLORS.ACCENT, COLORS.ACCENT_PINK]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.sendButtonGradient}
-                  >
-                    <Ionicons name="send" size={20} color={COLORS.WHITE} />
-                  </LinearGradient>
-                ) : (
-                  <MaterialCommunityIcons name="emoticon-happy-outline" size={24} color={COLORS.TEXT_MUTED} />
-                )}
-              </TouchableOpacity>
-            </Animated.View>
+        {isDM ? (
+          // DM Header
+          <View style={styles.headerContent}>
+            <View style={styles.dmAvatarContainer}>
+              <Image source={{ uri: dmUser?.avatar || 'https://i.pravatar.cc/100' }} style={styles.headerAvatar} />
+              <View style={styles.dmStatusIndicator} />
+            </View>
+            <Text style={styles.headerTitle}>{dmUser?.name || channelName}</Text>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.TEXT_MUTED} />
           </View>
-        </Animated.View>
-      </KeyboardAvoidingView>
-    </LinearGradient>
+        ) : (
+          // Channel Header
+          <View style={styles.headerContent}>
+            <MaterialCommunityIcons name="pound" size={24} color={COLORS.TEXT_MUTED} />
+            <Text style={styles.headerTitle}>{channelName}</Text>
+            {channelName === 'voice-room' && (
+              <Text style={styles.headerDescription}> | Voice channel</Text>
+            )}
+          </View>
+        )}
+
+        <View style={styles.headerActions}>
+          {isDM ? (
+            // DM Actions: Call, Video, Search
+            <>
+              <TouchableOpacity style={styles.headerButton}>
+                <MaterialCommunityIcons name="phone" size={24} color={COLORS.TEXT_BRIGHT} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.headerButton}>
+                <MaterialCommunityIcons name="video" size={24} color={COLORS.TEXT_BRIGHT} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.headerButton}>
+                <MaterialCommunityIcons name="magnify" size={24} color={COLORS.TEXT_BRIGHT} />
+              </TouchableOpacity>
+            </>
+          ) : (
+            // Channel Actions
+            <>
+              <TouchableOpacity style={styles.headerButton}>
+                <MaterialCommunityIcons name="bell" size={24} color={COLORS.TEXT_MUTED} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.headerButton}>
+                <MaterialCommunityIcons name="pin" size={24} color={COLORS.TEXT_MUTED} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.headerButton, showMembers && styles.headerButtonActive]}
+                onPress={() => setShowMembers(!showMembers)}
+              >
+                <MaterialCommunityIcons name="account-group" size={24} color={showMembers ? COLORS.TEXT_BRIGHT : COLORS.TEXT_MUTED} />
+              </TouchableOpacity>
+              <View style={styles.searchBox}>
+                <TextInput
+                  placeholder="Search"
+                  placeholderTextColor={COLORS.TEXT_MUTED}
+                  style={styles.searchInput}
+                />
+                <MaterialCommunityIcons name="magnify" size={18} color={COLORS.TEXT_MUTED} style={{ marginRight: 6 }} />
+              </View>
+              <TouchableOpacity style={styles.headerButton}>
+                <MaterialCommunityIcons name="inbox" size={24} color={COLORS.TEXT_MUTED} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.headerButton}>
+                <MaterialCommunityIcons name="help-circle" size={24} color={COLORS.TEXT_MUTED} />
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.contentRow}>
+        <View style={styles.mainChat}>
+          {/* Messages */}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.keyboardView}
+          >
+            <FlatList
+              data={messages}
+              keyExtractor={item => item.id}
+              renderItem={({ item, index }) => {
+                const isOwnMessage = item.isOwnMessage || item.user === 'Bạn';
+                return <MessageItem item={item} isOwnMessage={isOwnMessage} index={index} />;
+              }}
+              contentContainerStyle={styles.listContent}
+              style={styles.list}
+              showsVerticalScrollIndicator={true}
+              ListFooterComponent={
+                typingUsers.length > 0 ? (
+                  <TypingIndicator typingUsers={typingUsers} />
+                ) : null
+              }
+            />
+
+            {/* Chat Input Bar */}
+            <View style={styles.inputWrapper}>
+              <View style={[styles.inputContainer, focused && styles.inputContainerFocused]}>
+                {/* Left Icon (Plus) */}
+                <TouchableOpacity style={styles.leftActionButton}>
+                  <View style={styles.plusIconCircle}>
+                    <MaterialCommunityIcons name="plus" size={20} color={COLORS.TEXT_BRIGHT} />
+                  </View>
+                </TouchableOpacity>
+
+                {/* Text Input */}
+                <TextInput
+                  style={styles.input}
+                  placeholder={isDM ? `Message @${dmUser?.name || 'User'}` : `Message #${channelName}`}
+                  placeholderTextColor={COLORS.TEXT_MUTED}
+                  value={text}
+                  onChangeText={setText}
+                  onFocus={() => setFocused(true)}
+                  onBlur={() => setFocused(false)}
+                  onSubmitEditing={handleSend}
+                  onKeyPress={handleKeyPress}
+                  multiline={false}
+                  returnKeyType="send"
+                />
+
+                {/* Right Icons */}
+                <View style={styles.rightActions}>
+                  {isDM ? (
+                    // DM Mobile Icons: Gift, Mic (and Smiley usually inside input or next to it)
+                    <>
+                      <TouchableOpacity style={styles.rightActionButton}>
+                        <MaterialCommunityIcons name="gift" size={24} color={COLORS.TEXT_MUTED} />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.rightActionButton}>
+                        <MaterialCommunityIcons name="microphone" size={24} color={COLORS.TEXT_MUTED} />
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    // Desktop/Standard Channel Icons
+                    <>
+                      <TouchableOpacity style={styles.rightActionButton}>
+                        <MaterialCommunityIcons name="gift" size={24} color={COLORS.TEXT_MUTED} />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.rightActionButton}>
+                        <MaterialCommunityIcons name="file-gif-box" size={24} color={COLORS.TEXT_MUTED} />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.rightActionButton}>
+                        <MaterialCommunityIcons name="sticker-emoji" size={24} color={COLORS.TEXT_MUTED} />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.rightActionButton}>
+                        <MaterialCommunityIcons name="emoticon-happy-outline" size={24} color={COLORS.TEXT_MUTED} />
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+
+        {/* Members Sidebar */}
+        {showMembers && <MembersSidebar members={[]} />}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: COLORS.BACKGROUND,
+  },
+  contentRow: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  mainChat: {
+    flex: 1,
+    flexDirection: 'column',
   },
   keyboardView: {
     flex: 1,
   },
   header: {
-    height: 50,
+    height: 48,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.BORDER,
+    borderBottomColor: '#1f2023', // Darker border
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    shadowColor: COLORS.ACCENT,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
+    backgroundColor: COLORS.BACKGROUND,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flex: 1, // Allow text to take up space
+  },
+  dmAvatarContainer: {
+    position: 'relative',
+  },
+  headerAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  dmStatusIndicator: {
+    position: 'absolute',
+    bottom: -1,
+    right: -1,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: COLORS.TEXT_MUTED, // Default/Offline, change dynamically if needed
+    borderWidth: 2,
+    borderColor: COLORS.BACKGROUND,
   },
   headerTitle: {
     color: COLORS.TEXT_BRIGHT,
-    fontWeight: 'bold',
+    fontWeight: '700',
     fontSize: 16,
-  },
-  headerDivider: {
-    width: 1,
-    height: 20,
-    backgroundColor: COLORS.DIVIDER,
   },
   headerDescription: {
     color: COLORS.TEXT_MUTED,
-    fontSize: 12,
+    fontSize: 14,
   },
   headerActions: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    gap: 16,
   },
   headerButton: {
-    padding: 6,
+    padding: 4,
+  },
+  headerButtonActive: {
+    // Optionally style active state
+    opacity: 1,
+  },
+  searchBox: {
+    backgroundColor: '#1E1F22',
+    flexDirection: 'row',
+    alignItems: 'center',
     borderRadius: 4,
+    height: 24,
+    width: 140,
+    paddingHorizontal: 6,
+  },
+  searchInput: {
+    flex: 1,
+    color: COLORS.TEXT_BRIGHT,
+    fontSize: 12,
+    padding: 0,
   },
   list: {
     flex: 1,
@@ -447,114 +429,68 @@ const styles = StyleSheet.create({
   },
   msgContainer: {
     flexDirection: 'row',
-    marginBottom: 20,
-  },
-  msgContainerOwn: {
-    flexDirection: 'row-reverse',
+    marginBottom: 16, // Spacing between messages
+    paddingHorizontal: 0,
+    alignItems: 'flex-start',
   },
   avatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
     backgroundColor: COLORS.INPUT_BG,
-    marginRight: 12,
-    borderWidth: 2,
-    borderColor: COLORS.ACCENT_SECONDARY,
+    marginRight: 16,
+    marginTop: 2,
   },
   msgContent: {
     flex: 1,
-    maxWidth: '75%',
-  },
-  msgContentOwn: {
-    alignItems: 'flex-end',
   },
   msgHeader: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    marginBottom: 4,
+    marginBottom: 2,
     gap: 8,
   },
   username: {
     color: COLORS.TEXT_BRIGHT,
-    fontWeight: 'bold',
+    fontWeight: '500',
     fontSize: 16,
-  },
-  timestampContainer: {
-    backgroundColor: COLORS.INPUT_BG,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
   },
   timestamp: {
     color: COLORS.TEXT_MUTED,
-    fontSize: 11,
-  },
-  msgBubble: {
-    borderRadius: 12,
-    padding: 12,
-    shadowColor: COLORS.BLACK,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  msgBubbleOther: {
-    backgroundColor: COLORS.INPUT_BG,
-    borderTopLeftRadius: 4,
-  },
-  msgBubbleOwn: {
-    borderTopRightRadius: 4,
-    overflow: 'hidden',
-  },
-  msgBubbleGradient: {
-    padding: 12,
+    fontSize: 12,
+    fontWeight: '400',
   },
   msgText: {
-    color: COLORS.TEXT_BRIGHT,
+    color: '#dbdee1', // Slightly softer white
     fontSize: 15,
-    lineHeight: 20,
-  },
-  msgTextOwn: {
-    color: COLORS.WHITE,
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '500',
+    lineHeight: 22,
   },
   inputWrapper: {
-    padding: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+    paddingTop: 0,
     backgroundColor: COLORS.BACKGROUND,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.BORDER,
   },
   inputContainer: {
-    backgroundColor: COLORS.INPUT_BG,
-    borderRadius: 24,
+    backgroundColor: '#383A40', // Typical Discord input bg
+    borderRadius: 8,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 2,
-    borderColor: COLORS.INPUT_BORDER,
-    minHeight: 44,
+    paddingVertical: 0, // Compact
+    height: 44,
   },
   inputContainerFocused: {
-    borderColor: COLORS.INPUT_FOCUS,
-    shadowColor: COLORS.INPUT_FOCUS,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 4,
+    // Optional focus styles
   },
-  plusIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    marginRight: 8,
-    overflow: 'hidden',
+  leftActionButton: {
+    marginRight: 12,
   },
-  plusIconGradient: {
-    width: '100%',
-    height: '100%',
+  plusIconCircle: {
+    backgroundColor: '#B5BAC1',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -562,54 +498,37 @@ const styles = StyleSheet.create({
     flex: 1,
     color: COLORS.TEXT_BRIGHT,
     fontSize: 15,
-    paddingVertical: 4,
-    maxHeight: 100,
-  },
-  sendButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    marginLeft: 8,
-    overflow: 'hidden',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sendButtonGradient: {
-    width: '100%',
     height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
+    // paddingVertical: 10,
   },
-  typingIndicator: {
+  rightActions: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
+  },
+  rightActionButton: {
+    padding: 4,
+  },
+  typingIndicator: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
   typingDots: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 4,
   },
   typingDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: COLORS.TEXT_MUTED,
-  },
-  typingDot1: {
-    opacity: 0.4,
-  },
-  typingDot2: {
-    opacity: 0.6,
-  },
-  typingDot3: {
-    opacity: 0.8,
+    backgroundColor: COLORS.TEXT_BRIGHT,
   },
   typingText: {
-    color: COLORS.TEXT_MUTED,
-    fontSize: 13,
-    fontStyle: 'italic',
+    color: COLORS.TEXT_BRIGHT,
+    fontSize: 12,
+    fontWeight: 'bold',
   },
 });

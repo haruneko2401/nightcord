@@ -11,6 +11,7 @@ import {
   Platform,
   Animated,
   ScrollView,
+  Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -20,6 +21,7 @@ import COLORS from '../constants/colors';
 const ParticipantItem = ({ participant, isCurrentUser, index }) => {
   const slideAnim = useRef(new Animated.Value(30)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.parallel([
@@ -38,6 +40,38 @@ const ParticipantItem = ({ participant, isCurrentUser, index }) => {
     ]).start();
   }, []);
 
+  // Animation cho speaking indicator (glow effect)
+  useEffect(() => {
+    if (participant.isSpeaking) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowAnim, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: false,
+          }),
+          Animated.timing(glowAnim, {
+            toValue: 0,
+            duration: 500,
+            useNativeDriver: false,
+          }),
+        ])
+      ).start();
+    } else {
+      glowAnim.setValue(0);
+    }
+  }, [participant.isSpeaking]);
+
+  const glowOpacity = glowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.3, 1],
+  });
+
+  const glowScale = glowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.1],
+  });
+
   return (
     <Animated.View
       style={[
@@ -49,17 +83,39 @@ const ParticipantItem = ({ participant, isCurrentUser, index }) => {
         },
       ]}
     >
-      <View style={styles.participantAvatarContainer}>
+      <Animated.View
+        style={[
+          styles.participantAvatarContainer,
+          participant.isSpeaking && {
+            shadowColor: COLORS.SUCCESS,
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: glowOpacity,
+            shadowRadius: 15,
+            elevation: 10,
+            transform: [{ scale: glowScale }],
+          },
+        ]}
+      >
         <Image
           source={{ uri: participant.avatar }}
-          style={styles.participantAvatar}
+          style={[
+            styles.participantAvatar,
+            participant.isSpeaking && styles.participantAvatarSpeaking,
+          ]}
         />
         {participant.isSpeaking && (
-          <View style={styles.speakingIndicator}>
-            <MaterialCommunityIcons name="microphone" size={12} color={COLORS.SUCCESS} />
-          </View>
+          <Animated.View
+            style={[
+              styles.speakingIndicator,
+              {
+                opacity: glowOpacity,
+              },
+            ]}
+          >
+            <MaterialCommunityIcons name="microphone" size={14} color={COLORS.SUCCESS} />
+          </Animated.View>
         )}
-      </View>
+      </Animated.View>
       <View style={styles.participantInfo}>
         <Text style={styles.participantName}>
           {participant.name}
@@ -122,7 +178,7 @@ const MessageItem = ({ item, isOwnMessage, index }) => {
         {
           opacity: fadeAnim,
           transform: [
-            { translateX: isOwnMessage ? slideAnim : slideAnim },
+            { translateX: slideAnim },
             { scale: scaleAnim },
           ],
         },
@@ -148,11 +204,13 @@ export default function VoiceChannelScreen({
   onLeave,
   isMuted = false,
   isDeafened = false,
+  isCameraOn = false,
   onToggleMute,
   onToggleDeafen,
   onToggleCamera,
   onOpenChat,
   onOpenEffects,
+  localVideoRef,
 }) {
   const [text, setText] = useState('');
   const [isConnected, setIsConnected] = useState(true);
@@ -161,6 +219,7 @@ export default function VoiceChannelScreen({
   const messagesEndRef = useRef(null);
   const chatMessagesEndRef = useRef(null);
   const slideAnim = useRef(new Animated.Value(500)).current;
+  const videoRef = useRef(null);
 
   useEffect(() => {
     // Scroll to bottom when new message arrives
@@ -185,6 +244,17 @@ export default function VoiceChannelScreen({
       slideAnim.setValue(500);
     }
   }, [showChat]);
+
+  // Setup video ref when camera is on
+  useEffect(() => {
+    if (isCameraOn && Platform.OS === 'web' && localVideoRef) {
+      if (typeof localVideoRef === 'function') {
+        localVideoRef(videoRef.current);
+      } else if (localVideoRef.current !== videoRef.current) {
+        localVideoRef.current = videoRef.current;
+      }
+    }
+  }, [isCameraOn, localVideoRef]);
 
   const handleSend = () => {
     if (text.trim()) {
@@ -253,6 +323,29 @@ export default function VoiceChannelScreen({
             <Text style={styles.sectionTitle}>Participants ({participants.length})</Text>
           </View>
           <ScrollView style={styles.participantsList} showsVerticalScrollIndicator={false}>
+            {/* Local Video Preview (if camera is on) */}
+            {isCameraOn && Platform.OS === 'web' && (
+              <View style={styles.localVideoWrapper}>
+                <Text style={styles.localVideoLabel}>Bạn (Camera)</Text>
+                <View style={styles.localVideoContainer}>
+                  {Platform.OS === 'web' && typeof document !== 'undefined' && (
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        borderRadius: 8,
+                      }}
+                    />
+                  )}
+                </View>
+              </View>
+            )}
+            
             {participants.map((participant, index) => (
               <ParticipantItem
                 key={participant.id}
@@ -347,12 +440,19 @@ export default function VoiceChannelScreen({
           </View>
 
           <View style={styles.controlsButtons}>
-            {/* Camera Mute */}
+            {/* Camera Toggle */}
             <TouchableOpacity
-              style={[styles.controlButton, styles.controlButtonGray]}
+              style={[
+                styles.controlButton,
+                isCameraOn ? styles.controlButtonActive : styles.controlButtonGray
+              ]}
               onPress={onToggleCamera || (() => {})}
             >
-              <MaterialCommunityIcons name="video-off" size={24} color={COLORS.WHITE} />
+              <MaterialCommunityIcons 
+                name={isCameraOn ? "video" : "video-off"} 
+                size={24} 
+                color={isCameraOn ? COLORS.SUCCESS : COLORS.WHITE} 
+              />
             </TouchableOpacity>
 
             {/* Microphone Mute */}
@@ -407,8 +507,8 @@ export default function VoiceChannelScreen({
       {/* Chat Modal */}
       <Modal
         visible={showChat}
-        transparent
-        animationType="none"
+        animationType="slide"
+        transparent={true}
         onRequestClose={handleCloseChat}
       >
         <View style={styles.chatModalOverlay}>
@@ -425,33 +525,30 @@ export default function VoiceChannelScreen({
               },
             ]}
           >
-            {/* Chat Header */}
             <View style={styles.chatModalHeader}>
               <Text style={styles.chatModalTitle}>Chat</Text>
               <TouchableOpacity onPress={handleCloseChat}>
                 <MaterialCommunityIcons name="close" size={24} color={COLORS.TEXT_BRIGHT} />
               </TouchableOpacity>
             </View>
-
-            {/* Messages List */}
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
               style={styles.chatModalBody}
-              keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
             >
               <FlatList
                 ref={chatMessagesEndRef}
                 data={messages}
-                keyExtractor={item => item.id}
-                renderItem={({ item, index }) => {
-                  const isOwnMessage = item.user === 'Bạn' || item.user === 'You';
-                  return <MessageItem item={item} isOwnMessage={isOwnMessage} index={index} />;
-                }}
+                keyExtractor={(item) => item.id}
+                renderItem={({ item, index }) => (
+                  <MessageItem
+                    item={item}
+                    isOwnMessage={item.user === 'Bạn' || item.user === 'You'}
+                    index={index}
+                  />
+                )}
                 contentContainerStyle={styles.chatMessagesList}
                 showsVerticalScrollIndicator={false}
               />
-
-              {/* Input Area */}
               <View style={styles.chatInputContainer}>
                 <View style={styles.chatInputWrapper}>
                   <TextInput
@@ -496,13 +593,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    height: 50,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.BORDER,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 16,
     shadowColor: COLORS.ACCENT,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -512,8 +609,7 @@ const styles = StyleSheet.create({
   headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    flex: 1,
+    gap: 8,
   },
   headerTitle: {
     color: COLORS.TEXT_BRIGHT,
@@ -572,38 +668,45 @@ const styles = StyleSheet.create({
   },
   participantsList: {
     flex: 1,
-    padding: 8,
+    padding: 12,
   },
   participantItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
+    marginBottom: 8,
     borderRadius: 8,
-    marginBottom: 4,
-    gap: 12,
+    backgroundColor: COLORS.INPUT_BG,
   },
   participantItemCurrent: {
-    backgroundColor: COLORS.INPUT_BG,
-    borderLeftWidth: 3,
-    borderLeftColor: COLORS.ACCENT,
+    borderWidth: 2,
+    borderColor: COLORS.ACCENT,
+    backgroundColor: COLORS.BACKGROUND,
   },
   participantAvatarContainer: {
     position: 'relative',
+    marginRight: 12,
   },
   participantAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     borderWidth: 2,
-    borderColor: COLORS.BORDER,
+    borderColor: COLORS.ACCENT_SECONDARY,
+  },
+  participantAvatarSpeaking: {
+    borderWidth: 3,
+    borderColor: COLORS.SUCCESS,
   },
   speakingIndicator: {
     position: 'absolute',
     bottom: -2,
     right: -2,
-    backgroundColor: COLORS.SUCCESS,
+    backgroundColor: COLORS.BACKGROUND,
     borderRadius: 10,
     padding: 2,
+    borderWidth: 2,
+    borderColor: COLORS.SUCCESS,
   },
   participantInfo: {
     flex: 1,
@@ -621,6 +724,27 @@ const styles = StyleSheet.create({
   participantActions: {
     flexDirection: 'row',
     gap: 8,
+  },
+  localVideoWrapper: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: COLORS.INPUT_BG,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: COLORS.ACCENT,
+  },
+  localVideoLabel: {
+    color: COLORS.TEXT_BRIGHT,
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  localVideoContainer: {
+    width: '100%',
+    height: 150,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: COLORS.BACKGROUND,
   },
   chatSection: {
     flex: 1,
@@ -748,41 +872,31 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: COLORS.INPUT_BG,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: COLORS.BORDER,
   },
   controlButtonGray: {
     backgroundColor: COLORS.INPUT_BG,
-    borderColor: COLORS.BORDER,
   },
   controlButtonMuted: {
     backgroundColor: COLORS.ERROR,
-    borderColor: COLORS.ERROR,
   },
   controlButtonDeafened: {
-    backgroundColor: COLORS.WHITE,
-    borderWidth: 2,
-    borderColor: COLORS.ERROR,
+    backgroundColor: COLORS.ERROR,
   },
   controlButtonEnd: {
     backgroundColor: COLORS.ERROR,
-    borderColor: COLORS.ERROR,
   },
-  // Chat Modal Styles
+  controlButtonActive: {
+    backgroundColor: COLORS.SUCCESS,
+  },
   chatModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
   chatModalBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    ...StyleSheet.absoluteFillObject,
   },
   chatModalContent: {
     backgroundColor: COLORS.BACKGROUND,
@@ -846,4 +960,3 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
-

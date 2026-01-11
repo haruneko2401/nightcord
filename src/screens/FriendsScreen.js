@@ -15,7 +15,9 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import COLORS from '../constants/colors';
-import { FRIENDS, DIRECT_MESSAGES } from '../data/mock';
+// import { FRIENDS, DIRECT_MESSAGES } from '../data/mock';
+const FRIENDS = [];
+const DIRECT_MESSAGES = [];
 
 export default function FriendsScreen({ onLogout, user, onCreateServer }) {
   const [activeTab, setActiveTab] = useState('online'); // 'online', 'all', 'pending'
@@ -26,7 +28,7 @@ export default function FriendsScreen({ onLogout, user, onCreateServer }) {
     if (activeTab === 'online') return friend.status === 'online';
     if (activeTab === 'pending') return friend.status === 'pending';
     return true; // 'all'
-  }).filter(friend => 
+  }).filter(friend =>
     friend.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -47,18 +49,7 @@ export default function FriendsScreen({ onLogout, user, onCreateServer }) {
             <MaterialCommunityIcons name="account-group" size={20} color={COLORS.TEXT_BRIGHT} />
             <Text style={styles.topButtonText}>Friends</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.topButton}>
-            <MaterialCommunityIcons name="diamond-stone" size={20} color={COLORS.TEXT_BRIGHT} />
-            <Text style={styles.topButtonText}>Nitro</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.topButton}>
-            <MaterialCommunityIcons name="store" size={20} color={COLORS.TEXT_BRIGHT} />
-            <Text style={styles.topButtonText}>Shop</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.topButton}>
-            <MaterialCommunityIcons name="trophy" size={20} color={COLORS.TEXT_BRIGHT} />
-            <Text style={styles.topButtonText}>Quests</Text>
-          </TouchableOpacity>
+
         </View>
 
         {/* Direct Messages Header */}
@@ -94,9 +85,9 @@ export default function FriendsScreen({ onLogout, user, onCreateServer }) {
         {/* User Profile Bar */}
         <View style={styles.userBar}>
           <View style={styles.userInfo}>
-            <Image 
-              source={{ uri: 'https://i.pravatar.cc/100?img=50' }} 
-              style={styles.userAvatar} 
+            <Image
+              source={{ uri: 'https://i.pravatar.cc/100?img=50' }}
+              style={styles.userAvatar}
             />
             <View style={styles.userDetails}>
               <Text style={styles.userName} numberOfLines={1}>HarukiSakur...</Text>
@@ -110,7 +101,7 @@ export default function FriendsScreen({ onLogout, user, onCreateServer }) {
             <TouchableOpacity style={styles.userActionButton}>
               <MaterialCommunityIcons name="headphones" size={18} color={COLORS.TEXT_MUTED} />
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.userActionButton}
               onPress={() => setShowSettings(true)}
             >
@@ -141,7 +132,7 @@ export default function FriendsScreen({ onLogout, user, onCreateServer }) {
           </View>
           {/* Create Server Button */}
           {onCreateServer && (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.createServerButton}
               onPress={onCreateServer}
               activeOpacity={0.7}
@@ -330,9 +321,9 @@ export default function FriendsScreen({ onLogout, user, onCreateServer }) {
               {/* User Info */}
               <View style={styles.settingsSection}>
                 <View style={styles.userInfoSection}>
-                  <Image 
-                    source={{ uri: 'https://i.pravatar.cc/100?img=50' }} 
-                    style={styles.settingsAvatar} 
+                  <Image
+                    source={{ uri: 'https://i.pravatar.cc/100?img=50' }}
+                    style={styles.settingsAvatar}
                   />
                   <View style={styles.userInfoText}>
                     <Text style={styles.settingsUserName}>
@@ -381,10 +372,10 @@ export default function FriendsScreen({ onLogout, user, onCreateServer }) {
                       console.error('onLogout function is not provided');
                       return;
                     }
-                    
+
                     // Đóng modal trước
                     setShowSettings(false);
-                    
+
                     // Sử dụng window.confirm cho web, Alert.alert cho mobile
                     if (Platform.OS === 'web') {
                       // Web: dùng window.confirm (đơn giản và hoạt động tốt trên web)

@@ -27,7 +27,7 @@ const ChannelItem = ({ item, isActive, onPress }) => (
   </TouchableOpacity>
 );
 
-export default function ChannelList({ serverName, activeChannel, onSelectChannel }) {
+export default function ChannelList({ serverName, activeChannel, onSelectChannel, channels = [] }) {
 
   return (
     <LinearGradient
@@ -59,7 +59,7 @@ export default function ChannelList({ serverName, activeChannel, onSelectChannel
           <Text style={styles.categoryText}>TEXT CHANNELS</Text>
         </View>
         <FlatList
-          data={CHANNELS.filter(c => c.type === 'text')}
+          data={channels.filter(c => c.type === 'text').length > 0 ? channels.filter(c => c.type === 'text') : CHANNELS.filter(c => c.type === 'text')}
           keyExtractor={item => item.id}
           renderItem={({ item }) => (
             <ChannelItem 
@@ -79,7 +79,7 @@ export default function ChannelList({ serverName, activeChannel, onSelectChannel
           <Text style={styles.categoryText}>VOICE CHANNELS</Text>
         </View>
         <FlatList
-          data={CHANNELS.filter(c => c.type === 'voice')}
+          data={channels.filter(c => c.type === 'voice').length > 0 ? channels.filter(c => c.type === 'voice') : CHANNELS.filter(c => c.type === 'voice')}
           keyExtractor={item => item.id}
           renderItem={({ item }) => (
             <ChannelItem 

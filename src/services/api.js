@@ -190,5 +190,56 @@ export const authAPI = {
   },
 };
 
+// Servers API functions
+export const serversAPI = {
+  // Create server
+  async createServer(name, type) {
+    return await apiCall('/servers/create', {
+      method: 'POST',
+      body: JSON.stringify({ name, type }),
+    });
+  },
+
+  // Get user's servers
+  async getServers() {
+    return await apiCall('/servers', {
+      method: 'GET',
+    });
+  },
+
+  // Get channels for a server
+  async getChannels(serverId) {
+    return await apiCall(`/servers/${serverId}/channels`, {
+      method: 'GET',
+    });
+  },
+
+  // Create channel
+  async createChannel(serverId, name, type) {
+    return await apiCall(`/servers/${serverId}/channels`, {
+      method: 'POST',
+      body: JSON.stringify({ name, type }),
+    });
+  },
+};
+
+// Messages API functions
+export const messagesAPI = {
+  // Send message
+  async sendMessage(channelId, content) {
+    return await apiCall('/messages/send', {
+      method: 'POST',
+      body: JSON.stringify({ channelId, content }),
+    });
+  },
+
+  // Get messages for a channel
+  async getMessages(channelId) {
+    return await apiCall(`/messages/${channelId}`, {
+      method: 'GET',
+    });
+  },
+};
+
 export { getStoredToken, setStoredToken, removeStoredToken };
 

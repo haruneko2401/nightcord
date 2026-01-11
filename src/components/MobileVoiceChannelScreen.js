@@ -80,11 +80,13 @@ export default function MobileVoiceChannelScreen({
   onBack,
   isMuted = false,
   isDeafened = false,
+  isCameraOn = false,
   onToggleMute,
   onToggleDeafen,
   onToggleCamera,
   onOpenChat,
   onOpenEffects,
+  localVideoRef,
 }) {
   const [showAddPeople, setShowAddPeople] = useState(false);
   const [showChat, setShowChat] = useState(false);
@@ -214,12 +216,19 @@ export default function MobileVoiceChannelScreen({
         <View style={styles.dragHandle} />
         
         <View style={styles.controlsRow}>
-          {/* Camera Mute */}
+          {/* Camera Toggle */}
           <TouchableOpacity 
-            style={[styles.controlButton, styles.controlButtonGray]}
+            style={[
+              styles.controlButton, 
+              isCameraOn ? styles.controlButtonActive : styles.controlButtonGray
+            ]}
             onPress={onToggleCamera}
           >
-            <MaterialCommunityIcons name="video-off" size={24} color={COLORS.WHITE} />
+            <MaterialCommunityIcons 
+              name={isCameraOn ? "video" : "video-off"} 
+              size={24} 
+              color={isCameraOn ? COLORS.SUCCESS : COLORS.WHITE} 
+            />
           </TouchableOpacity>
 
           {/* Microphone Mute */}

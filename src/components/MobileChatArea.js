@@ -133,7 +133,7 @@ const MessageItem = ({ item, isOwnMessage, index }) => {
       <Image source={{ uri: item.avatar }} style={styles.msgAvatar} />
       <View style={styles.msgContent}>
         <View style={styles.msgHeader}>
-          <Text style={styles.msgUser}>{item.user}</Text>
+          <Text style={styles.msgUser}>{item.user || item.username || 'User'}</Text>
           <Text style={styles.msgTime}>{item.time}</Text>
         </View>
         <Text style={styles.msgText}>{item.content}</Text>
